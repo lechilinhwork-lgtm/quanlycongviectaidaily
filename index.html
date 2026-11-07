@@ -112,10 +112,6 @@
     }
 
     /* Checklist Đại Lý gộp - accordion 6 khối */
-    .acc-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; }
-    .acc.open .acc-body { max-height: 4000px; }
-    .acc.open .acc-chevron { transform: rotate(180deg); }
-    .acc-chevron { transition: transform .2s ease; }
   </style>
 </head>
 
@@ -1354,8 +1350,37 @@
     let currentUserAuthorized = false;
     let currentToken = '';
 
+    // Phiên đăng nhập KHÔNG tự hết hạn (giống Sale tool): đăng nhập 1 lần, lần sau mở app vào thẳng, chỉ thoát khi bấm
+    // "Đăng xuất" hoặc khi máy chủ báo tài khoản/phiên không còn hợp lệ.
+    const SESSION_KEY_ = 'dt_session';
+    function saveSession_(token, hoTen, vaiTro, username) {
+      try {
+        localStorage.setItem(SESSION_KEY_, JSON.stringify({ token: token, hoTen: hoTen || '', vaiTro: vaiTro || '' }));
+        localStorage.setItem('dt_token', token);   // giữ khoá cũ cho tương thích bản trước
+        if (username) localStorage.setItem('dt_last_user', username);
+      } catch (e) {}
+    }
+    function readSession_() {
+      try {
+        const s = JSON.parse(localStorage.getItem(SESSION_KEY_) || 'null');
+        if (s && s.token) return s;
+      } catch (e) {}
+      let t = '';
+      try { t = localStorage.getItem('dt_token') || ''; } catch (e) {}
+      return t ? { token: t, hoTen: '', vaiTro: '', cu: true } : null;
+    }
+    function clearSession_() {
+      try { localStorage.removeItem(SESSION_KEY_); localStorage.removeItem('dt_token'); localStorage.removeItem(BOOT_KEY_); } catch (e) {}
+      bootLoaded_ = false;
+    }
     function showLoginOverlay() {
       document.getElementById('loginOverlay').classList.remove('hidden');
+      // Nhớ tên đăng nhập lần trước — chỉ cần gõ mật khẩu
+      try {
+        const u = localStorage.getItem('dt_last_user') || '';
+        const el = document.getElementById('loginUsername');
+        if (u && el && !el.value) { el.value = u; const p = document.getElementById('loginPassword'); if (p && p.focus) p.focus(); }
+      } catch (e) {}
     }
     function hideLoginOverlay() {
       document.getElementById('loginOverlay').classList.add('hidden');
@@ -1379,7 +1404,7 @@
           btn.textContent = 'Đăng nhập';
           if (result.success) {
             currentToken = result.token;
-            try { localStorage.setItem('dt_token', result.token); } catch (e) {}
+            saveSession_(result.token, result.hoTen, result.vaiTro, username);
             applyLoggedInUser(result.hoTen, result.vaiTro);
             hideLoginOverlay();
           } else {
@@ -1408,10 +1433,9 @@
       myAgencies = [];
       showAllAgencies = false;
       document.getElementById('managerReportSection').classList.add('hidden');
-      try { localStorage.removeItem('dt_token'); } catch (e) {}
+      clearSession_();
       document.getElementById('userEmail').innerHTML = 'Người dùng: Khách <a href="#" onclick="logoutUser(); return false;" id="logoutLink" class="hidden underline ml-2">(Đăng xuất)</a>';
       document.getElementById('readOnlyBanner').classList.add('hidden');
-      document.getElementById('loginUsername').value = '';
       document.getElementById('loginPassword').value = '';
       showLoginOverlay();
     }
@@ -1427,7 +1451,7 @@
     function applyLoggedInUser(hoTen, vaiTro) {
       currentUserAuthorized = true;
       if (!IN_APPS_SCRIPT && !dataLoadedForWeb_) { dataLoadedForWeb_ = true; loadAllData(); loadProductImages(); }
-      else if (IN_APPS_SCRIPT) { loadActionData_(); }
+      else if (IN_APPS_SCRIPT && !bootLoaded_) { loadActionData_(); }
       document.getElementById('userEmail').innerHTML =
         'Người dùng: ' + (hoTen || 'Không rõ tên') + (vaiTro ? ' (' + vaiTro + ')' : '') +
         ' <a href="#" onclick="logoutUser(); return false;" class="underline ml-2">(Đăng xuất)</a>';
@@ -1443,28 +1467,32 @@
     // Lúc mở app: nếu đã có token lưu sẵn (đăng nhập trước đó) thì tự vào luôn, không thì
     // hiện màn hình đăng nhập chặn trước, chưa cho thao tác gì.
     function loadCurrentUser() {
-      let savedToken = '';
-      try { savedToken = localStorage.getItem('dt_token') || ''; } catch (e) {}
-      if (!savedToken) {
-        showLoginOverlay();
-        return;
+      const sess = readSession_();
+      if (!sess) { showLoginOverlay(); return; }
+
+      // Có phiên đã lưu (kèm tên + vai trò): VÀO THẲNG, không chờ máy chủ. Kiểm tra token chạy ngầm — chỉ khi máy chủ
+      // nói rõ "không hợp lệ" mới đăng xuất; mất mạng/chậm thì cứ giữ nguyên và dùng tiếp.
+      if (!sess.cu && sess.hoTen) {
+        currentToken = sess.token;
+        applyLoggedInUser(sess.hoTen, sess.vaiTro);
+        hideLoginOverlay();
       }
-      // Chỉ XOÁ đăng nhập khi máy chủ trả lời rõ "token không còn hợp lệ". Mất mạng / máy chủ chậm thì giữ nguyên
-      // token đã lưu và thử lại — tránh bị bắt đăng nhập lại chỉ vì 1 lần chập chờn.
       let tries = 0;
       const check = function() {
         tries++;
-        callServer('getCurrentUser', [savedToken], function(info) {
+        callServer('getCurrentUser', [sess.token], function(info) {
           if (info && info.authorized) {
-            currentToken = savedToken;
-            applyLoggedInUser(info.hoTen, info.vaiTro);
-            hideLoginOverlay();
+            if (sess.cu || sess.hoTen !== info.hoTen || sess.vaiTro !== info.vaiTro) {
+              currentToken = sess.token;
+              saveSession_(sess.token, info.hoTen, info.vaiTro);
+              applyLoggedInUser(info.hoTen, info.vaiTro);
+              hideLoginOverlay();
+            }
           } else if (info && info.authorized === false) {
-            try { localStorage.removeItem('dt_token'); } catch (e) {}
-            showLoginOverlay();
+            sessionExpired_(true);
           } else if (tries < 3) {
             setTimeout(check, 2000 * tries);
-          } else {
+          } else if (sess.cu || !sess.hoTen) {
             showLoginOverlay();
             const errEl = document.getElementById('loginError');
             if (errEl) { errEl.textContent = 'Chưa kết nối được máy chủ. Bạn vẫn đang được lưu đăng nhập — kiểm tra mạng rồi tải lại trang (không cần nhập lại mật khẩu).'; errEl.classList.remove('hidden'); }
@@ -1714,6 +1742,7 @@
       }
 
       let settled = false;
+      const waitMs = funcName === 'readAllData' ? 45000 : 15000;   // đọc cả bộ dữ liệu có thể lâu hơn khi máy chủ vừa khởi động
       const watchdog = setTimeout(function() {
         if (settled) return;
         settled = true;
@@ -1725,13 +1754,13 @@
           alert('Mất kết nối tới server khi thực hiện "' + funcName + '". Vui lòng thử lại.');
           callback({ success: false, message: 'Hết thời gian chờ phản hồi từ server' });
         }
-      }, 15000);
+      }, waitMs);
 
       serverRun_(funcName, finalArgs, function(result) {
           if (settled) return; // watchdog đã tự gọi lại/báo lỗi rồi thì kết quả đến muộn không tính nữa
           settled = true;
           clearTimeout(watchdog);
-          if (result && result.needLogin && !IN_APPS_SCRIPT) { sessionExpired_(); }
+          if (result && (result.needLogin || /Phiên đăng nhập đã hết/.test(String(result.message || '')))) { sessionExpired_(); }
           callback(result);
         },
         function(error) {
@@ -1756,10 +1785,11 @@
     }
 
     // Trên bản web: token hết hạn/bị đổi -> về màn hình đăng nhập
-    function sessionExpired_() {
-      if (!currentToken) return;
+    function sessionExpired_(force) {
+      if (!currentToken && !force) return;
       currentToken = '';
-      try { localStorage.removeItem('dt_token'); } catch (e) {}
+      clearSession_();
+      dataLoadedForWeb_ = false;
       showLoginOverlay();
     }
 
@@ -1938,7 +1968,72 @@
     // readAllTemCanThay/readAllDonHoi, nhưng gốc rễ đã xử lý dứt điểm bằng cách chuyển riêng 2
     // lệnh đó sang fetch() JSON (xem fetchAction_) — 6 lệnh còn lại chưa từng gặp lỗi đó nên
     // không cần nối tiếp nữa, trả về chạy song song cho nhanh.
+    const BOOT_KEY_ = 'dt_boot_v1';
+    let bootLoaded_ = false;
+
+    // Áp dụng từng phần dữ liệu (dùng chung cho lệnh gộp, bản nhớ trong máy và các lệnh lẻ dự phòng)
+    const APPLY_ = {
+      agencies(r) { allAgencies = r.data; computeMyAgencies(); populateAgencySelect(); populateAgencyViewSelect(); },
+      products(r) { allProducts = r.data; populateAgencySelect(); },
+      stock(r) {
+        // Server gửi dạng mảng số theo vị trí (xem Code.gs readStockByAgency) thay vì object lặp lại tên đại lý cho từng
+        // sản phẩm — nhẹ hơn ~94%. Dựng lại đúng cấu trúc cũ { sapCode: { tenDaiLy: soLuong } }.
+        const names = r.agencies || [], rebuilt = {};
+        Object.keys(r.data).forEach(function(sap) {
+          const arr = r.data[sap], obj = {};
+          names.forEach(function(n, i) { obj[n] = arr[i] || 0; });
+          rebuilt[sap] = obj;
+        });
+        allStock = rebuilt;
+      },
+      bangGia(r) { allBangGia = r.data; },
+      tonKhoCty(r) { allTonKhoCty = r.data; },
+      thuHoi(r) { allThuHoiSet = new Set(r.data); },
+      quanLyMau(r) { allQuanLyMau = r.data || {}; },
+      viecDL(r) { allCongViecDL = r.data || []; },
+      tem(r) { allTemCanThay = r.data; },
+      donHoi(r) { allDonHoi = r.data; },
+      trienKhai(r) { trienKhaiLoadError = ''; allCongViec = r.tasks || []; allTrienKhai = r.progress || []; }
+    };
+    function applyBoot_(b) {
+      ['agencies', 'products', 'stock', 'bangGia', 'tonKhoCty', 'thuHoi', 'quanLyMau', 'viecDL', 'tem', 'donHoi', 'trienKhai'].forEach(function(k) {
+        if (b[k] && b[k].success) { try { APPLY_[k](b[k]); } catch (e) { console.error('applyBoot_', k, e); } }
+        else if (k === 'trienKhai') trienKhaiLoadError = (b[k] && b[k].message) || 'Không tải được dữ liệu';
+      });
+      refreshAgencyViewIfOpen_();
+      renderPendingTasks_();
+      updateDashboard();
+      if (currentTab === 'caidat') renderQuanLyMau_();
+    }
+    function saveBootCache_(b) {
+      try {
+        const s = JSON.stringify({ ts: Date.now(), b: b });
+        if (s.length < 4500000) localStorage.setItem(BOOT_KEY_, s); else localStorage.removeItem(BOOT_KEY_);
+      } catch (e) { try { localStorage.removeItem(BOOT_KEY_); } catch (e2) {} }   // đầy bộ nhớ: bỏ qua, app vẫn chạy
+    }
+
     function loadAllData() {
+      if (!IN_APPS_SCRIPT && !currentToken) return;       // bản web: chỉ tải sau khi đăng nhập
+      // 1) Có bản đã lưu lần trước -> hiện NGAY (mở app tức thì), rồi cập nhật ngầm ở bước 2
+      if (!bootLoaded_) {
+        try {
+          const c = JSON.parse(localStorage.getItem(BOOT_KEY_) || 'null');
+          if (c && c.b) { applyBoot_(c.b); }
+        } catch (e) {}
+      }
+      // 2) 1 lệnh duy nhất lấy toàn bộ dữ liệu mới
+      callServer('readAllData', [], function(result) {
+        if (result && result.success) {
+          bootLoaded_ = true;
+          applyBoot_(result);
+          saveBootCache_(result);
+        } else if (!result || !result.needLogin) {
+          loadAllDataLegacy_();                           // máy chủ chưa có lệnh gộp (bản cũ) hoặc lỗi -> đọc từng phần như trước
+        }
+      });
+    }
+
+    function loadAllDataLegacy_() {
       callServer('readProducts', [], function(result) {
         if (result.success) {
           allProducts = result.data;
@@ -1949,54 +2044,34 @@
       });
 
       callServer('readStockByAgency', [], function(result) {
-        if (result.success) {
-          // Server giờ gửi dạng mảng số theo vị trí (xem Code.gs readStockByAgency) thay vì
-          // object lặp lại tên đại lý cho từng sản phẩm — giảm ~94% dung lượng tải về. Dựng lại
-          // đúng cấu trúc cũ { sapCode: { tenDaiLy: soLuong } } ngay tại đây — mọi nơi khác
-          // trong code vẫn dùng allStock[sapCode][tenDaiLy] như trước, không cần sửa gì thêm.
-          const agencyNames = result.agencies || [];
-          const rebuilt = {};
-          Object.keys(result.data).forEach(function(sapCode) {
-            const arr = result.data[sapCode];
-            const obj = {};
-            agencyNames.forEach(function(name, idx) { obj[name] = arr[idx] || 0; });
-            rebuilt[sapCode] = obj;
-          });
-          allStock = rebuilt;
-          refreshAgencyViewIfOpen_();
-        }
+        if (result.success) { APPLY_.stock(result); refreshAgencyViewIfOpen_(); }
       });
 
       callServer('readAgencies', [], function(result) {
         if (result.success) {
-          allAgencies = result.data;
-          computeMyAgencies();
-          populateAgencySelect();
-          populateAgencyViewSelect();
-          // Nếu Dashboard đã lỡ vẽ Top 5 cảnh báo trước khi allAgencies/myAgencies tải xong
-          // (do 6 lệnh chạy song song, không đảm bảo thứ tự về), vẽ lại đúng phạm vi theo Sale.
+          APPLY_.agencies(result);
           if (currentTab === 'dashboard') updateDashboard();
         }
       });
 
       callServer('readBangGia', [], function(result) {
-        if (result.success) { allBangGia = result.data; refreshAgencyViewIfOpen_(); }
+        if (result.success) { APPLY_.bangGia(result); refreshAgencyViewIfOpen_(); }
       });
 
       callServer('readTonKhoCongTy', [], function(result) {
-        if (result.success) { allTonKhoCty = result.data; refreshAgencyViewIfOpen_(); }
+        if (result.success) { APPLY_.tonKhoCty(result); refreshAgencyViewIfOpen_(); }
       });
 
       callServer('readQuanLyMau', [], function(result) {
-        if (result.success) { allQuanLyMau = result.data || {}; refreshAgencyViewIfOpen_(); if (currentTab === 'caidat') renderQuanLyMau_(); }
+        if (result.success) { APPLY_.quanLyMau(result); refreshAgencyViewIfOpen_(); if (currentTab === 'caidat') renderQuanLyMau_(); }
       });
 
       callServer('readCongViecDaiLy', [], function(result) {
-        if (result && result.success) { allCongViecDL = result.data || []; refreshAgencyViewIfOpen_(); renderPendingTasks_(); }
+        if (result && result.success) { APPLY_.viecDL(result); refreshAgencyViewIfOpen_(); renderPendingTasks_(); }
       });
 
       callServer('readThuHoiMau', [], function(result) {
-        if (result.success) { allThuHoiSet = new Set(result.data); refreshAgencyViewIfOpen_(); }
+        if (result.success) { APPLY_.thuHoi(result); refreshAgencyViewIfOpen_(); }
       });
 
       loadActionData_();
