@@ -893,6 +893,7 @@
       { ma: 'TB_KT_TEM', ten: 'Kiểm tra tem giá & bảng giá', moTa: 'Tem, bảng giá tại quầy đúng tháng hiện hành', nhom: 'Trưng bày', han: '' }
     ];
     function congViecList_() { return allCongViec.length ? allCongViec : CONG_VIEC_FALLBACK; }
+    let allCongViecDL = [];   // việc cần làm RIÊNG từng đại lý (sheet CongViecDaiLy)
     let allCongViec = [];   // danh sách việc cần triển khai tại đại lý (sheet CongViec)
     let allTrienKhai = [];  // tiến độ từng đại lý x từng việc (sheet TrienKhai)
     let trienKhaiLoadError = '';
@@ -1448,16 +1449,29 @@
         showLoginOverlay();
         return;
       }
-      callServer('getCurrentUser', [savedToken], function(info) {
-        if (info.authorized) {
-          currentToken = savedToken;
-          applyLoggedInUser(info.hoTen, info.vaiTro);
-          hideLoginOverlay();
-        } else {
-          try { localStorage.removeItem('dt_token'); } catch (e) {}
-          showLoginOverlay();
-        }
-      });
+      // Chỉ XOÁ đăng nhập khi máy chủ trả lời rõ "token không còn hợp lệ". Mất mạng / máy chủ chậm thì giữ nguyên
+      // token đã lưu và thử lại — tránh bị bắt đăng nhập lại chỉ vì 1 lần chập chờn.
+      let tries = 0;
+      const check = function() {
+        tries++;
+        callServer('getCurrentUser', [savedToken], function(info) {
+          if (info && info.authorized) {
+            currentToken = savedToken;
+            applyLoggedInUser(info.hoTen, info.vaiTro);
+            hideLoginOverlay();
+          } else if (info && info.authorized === false) {
+            try { localStorage.removeItem('dt_token'); } catch (e) {}
+            showLoginOverlay();
+          } else if (tries < 3) {
+            setTimeout(check, 2000 * tries);
+          } else {
+            showLoginOverlay();
+            const errEl = document.getElementById('loginError');
+            if (errEl) { errEl.textContent = 'Chưa kết nối được máy chủ. Bạn vẫn đang được lưu đăng nhập — kiểm tra mạng rồi tải lại trang (không cần nhập lại mật khẩu).'; errEl.classList.remove('hidden'); }
+          }
+        });
+      };
+      check();
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -1650,7 +1664,7 @@
     // số ở callServer() bên dưới, khỏi phải sửa từng chỗ gọi.
     const AUTH_REQUIRED_FUNCS = [
       'updateStock', 'updateStockBatch', 'submitTemRequestBatch',
-      'updateTemTrangThai', 'submitDonHoiBatch', 'updateDonHoiTrangThai', 'setTrienKhai', 'getTaiKhoanAI', 'addAgency', 'setQuyetDinhMau'
+      'updateTemTrangThai', 'submitDonHoiBatch', 'updateDonHoiTrangThai', 'setTrienKhai', 'getTaiKhoanAI', 'addAgency', 'setQuyetDinhMau', 'addCongViecDaiLy', 'setCongViecDaiLyTrangThai', 'xoaCongViecDaiLy'
     ];
 
     // Trì hoãn 1 hàm cho tới khi người dùng NGỪNG gõ được `ms` mili-giây — dùng cho các ô tìm
@@ -1977,6 +1991,10 @@
         if (result.success) { allQuanLyMau = result.data || {}; refreshAgencyViewIfOpen_(); if (currentTab === 'caidat') renderQuanLyMau_(); }
       });
 
+      callServer('readCongViecDaiLy', [], function(result) {
+        if (result && result.success) { allCongViecDL = result.data || []; refreshAgencyViewIfOpen_(); renderPendingTasks_(); }
+      });
+
       callServer('readThuHoiMau', [], function(result) {
         if (result.success) { allThuHoiSet = new Set(result.data); refreshAgencyViewIfOpen_(); }
       });
@@ -2046,7 +2064,7 @@
       const scope = isMgr ? allAgencies : myAgencies;
       if (!currentUserVaiTro || !scope.length) { sec.classList.add('hidden'); return; }
       const rows = scope.map(a => {
-        const tk = trienKhaiOf_(a.tenDaiLy), conLai = tk.filter(t => !t.done);
+        const tk = trienKhaiOf_(a.tenDaiLy).concat(viecRiengOf_(a.tenDaiLy)), conLai = tk.filter(t => !t.done);
         return { ten: a.tenDaiLy, tong: tk.length, conLai: conLai.length, quaHan: conLai.filter(isQuaHan_).length,
                  viec: conLai.slice(0, 3).map(t => t.ten) };
       }).filter(r => r.conLai > 0).sort((x, y) => y.quaHan - x.quaHan || y.conLai - x.conLai || x.ten.localeCompare(y.ten, 'vi'));
@@ -2909,6 +2927,18 @@
                  done: !!rec && rec.trangThai === 'Đã xong', nguoi: rec ? rec.nguoi : '', ngay: rec ? rec.ngay : '' };
       });
     }
+    function escHtml_(s) {
+      return String(s === null || s === undefined ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    // Việc riêng của 1 đại lý (chưa làm lên trước, quá hạn lên đầu)
+    function viecRiengOf_(agencyName) {
+      const nameNorm = normalizeVN(agencyName);
+      const ag = allAgencies.find(a => a.tenDaiLy === agencyName);
+      const maKH = ag && ag.ma ? String(ag.ma).trim() : '';
+      return allCongViecDL.filter(v => (maKH && String(v.maKH).trim() === maKH) || (!maKH && normalizeVN(v.daiLy) === nameNorm) || (!v.maKH && normalizeVN(v.daiLy) === nameNorm))
+        .map(v => Object.assign({}, v, { done: v.trangThai === 'Đã xong' }))
+        .sort((a, b) => (a.done - b.done) || (isQuaHan_(b) - isQuaHan_(a)) || String(a.han || '9999').localeCompare(String(b.han || '9999')) || String(b.ngayTao).localeCompare(String(a.ngayTao)));
+    }
     function todayStr_() {
       const d = new Date();
       return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
@@ -2970,8 +3000,9 @@
         .sort((a, b) => safeDateMsJs_(b.thoiGian) - safeDateMsJs_(a.thoiGian));
 
       const trienKhai = trienKhaiOf_(agencyName);
+      const viecRieng = viecRiengOf_(agencyName);
 
-      return { thuHoiCty, canGoMau, temCanThay, donHoi, trienKhai, dangSale: dangSaleList, hetHang, conHang };
+      return { thuHoiCty, canGoMau, temCanThay, donHoi, trienKhai, viecRieng, dangSale: dangSaleList, hetHang, conHang };
     }
 
     // ===== Gửi tài khoản AI + hướng dẫn cho đại lý (copy để dán vào Zalo/Messenger) =====
@@ -3082,6 +3113,83 @@
               '<span class="block text-xs text-gray-500">' + sub + '</span>' + hanHtml + '</span></button>';
           }).join('');
       }).join('');
+    }
+
+    // ----- Việc cần làm RIÊNG đại lý này: thêm / tick xong / xoá -----
+    function renderViecRiengInner(items) {
+      const form = '<div class="bg-teal-50 border border-teal-200 rounded-lg p-3 mb-3">' +
+        '<p class="text-xs font-bold text-teal-800 mb-2"><i class="fas fa-plus-circle"></i> Thêm việc cần làm tại đại lý này</p>' +
+        '<input type="text" id="vrTen" maxlength="200" placeholder="VD: Ký phụ lục T11, lấy lại mẫu cũ, gặp chủ đại lý..." onkeydown="if(event.key===\'Enter\') addViecRieng()" class="w-full px-3 py-2 border rounded-lg text-sm mb-2">' +
+        '<div class="flex gap-2 items-center"><label class="text-xs text-gray-600 flex-shrink-0">Hạn (nếu có):</label>' +
+        '<input type="date" id="vrHan" class="flex-1 px-2 py-1.5 border rounded-lg text-sm min-w-0">' +
+        '<button type="button" id="vrBtn" onclick="addViecRieng()" class="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap">Thêm</button></div></div>';
+      if (!items.length) return form + '<p class="text-gray-400 text-center py-2 text-sm">Chưa có việc riêng nào cho đại lý này</p>';
+      const conLai = items.filter(v => !v.done).length;
+      return form + '<p class="text-xs font-bold text-gray-500 uppercase mb-1">Việc riêng đại lý <span class="font-normal normal-case">(' + (items.length - conLai) + '/' + items.length + ' xong)</span></p>' +
+        items.map(v => {
+          const qh = isQuaHan_(v);
+          const hanHtml = v.han && !v.done ? '<span class="block text-xs font-semibold ' + (qh ? 'text-red-600' : 'text-amber-700') + '">' + (qh ? '⏰ QUÁ HẠN ' : '🗓 Hạn ') + hanFmt_(v.han) + '</span>' : '';
+          const sub = v.done ? 'Xong bởi ' + escHtml_(v.nguoiXong || '') + (v.ngayXong ? ' · ' + new Date(v.ngayXong).toLocaleDateString('vi-VN') : '') : 'Thêm bởi ' + escHtml_(v.nguoiTao || '');
+          return '<div class="flex items-stretch gap-2 mb-1.5"><button type="button" data-id="' + escHtml_(v.id) + '" onclick="toggleViecRieng(this.dataset.id)" class="flex-1 min-w-0 flex items-center gap-3 p-3 rounded-lg border text-left ' +
+            (v.done ? 'bg-green-50 border-green-300' : (qh ? 'bg-red-50 border-red-300' : 'bg-white border-gray-300')) + '">' +
+            '<span class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm ' + (v.done ? 'bg-green-600 text-white' : 'border-2 border-gray-400 text-transparent') + '">✓</span>' +
+            '<span class="flex-1 min-w-0"><span class="block font-semibold text-sm break-words ' + (v.done ? 'text-green-800 line-through' : '') + '">' + escHtml_(v.ten) + '</span>' +
+            '<span class="block text-xs text-gray-500">' + sub + '</span>' + hanHtml + '</span></button>' +
+            '<button type="button" data-id="' + escHtml_(v.id) + '" onclick="xoaViecRieng(this.dataset.id)" title="Xoá việc này" class="flex-shrink-0 w-10 rounded-lg border border-gray-300 text-gray-400 active:bg-red-50 active:text-red-600"><i class="fas fa-trash-alt"></i></button></div>';
+        }).join('');
+    }
+
+    function addViecRieng() {
+      const agencyName = currentAgencyForView;
+      if (!agencyName) return;
+      const ten = (document.getElementById('vrTen').value || '').trim();
+      const han = document.getElementById('vrHan').value || '';
+      if (!ten) { alert('Vui lòng nhập nội dung việc cần làm'); return; }
+      const ag = allAgencies.find(a => a.tenDaiLy === agencyName);
+      const maKH = ag && ag.ma ? String(ag.ma).trim() : '';
+      const btn = document.getElementById('vrBtn');
+      btn.disabled = true;
+      callServer('addCongViecDaiLy', [maKH, agencyName, ten, han, ''], function(result) {
+        if (result && result.success) {
+          allCongViecDL.push(result.item);
+          toast('Đã thêm việc cần làm');
+          agencyOpenPanel_ = 'trienkhai';
+          renderAgencyViewFromCache();
+          renderPendingTasks_();
+        } else {
+          btn.disabled = false;
+          alert('Không thêm được: ' + ((result && result.message) || 'lỗi không rõ'));
+        }
+      });
+    }
+    function toggleViecRieng(id) {
+      const v = allCongViecDL.find(x => x.id === id);
+      if (!v) return;
+      const newStatus = v.trangThai === 'Đã xong' ? 'Chưa' : 'Đã xong';
+      callServer('setCongViecDaiLyTrangThai', [id, newStatus], function(result) {
+        if (result && result.success) {
+          v.trangThai = newStatus; v.ngayXong = result.ngayXong || ''; v.nguoiXong = result.nguoiXong || '';
+          toast(newStatus === 'Đã xong' ? 'Đã ghi nhận hoàn thành' : 'Đã bỏ đánh dấu');
+          renderAgencyViewFromCache();
+          renderPendingTasks_();
+        } else {
+          alert('Lỗi: ' + ((result && result.message) || 'không lưu được'));
+        }
+      });
+    }
+    function xoaViecRieng(id) {
+      const v = allCongViecDL.find(x => x.id === id);
+      if (!v || !confirm('Xoá việc "' + v.ten + '"?')) return;
+      callServer('xoaCongViecDaiLy', [id], function(result) {
+        if (result && result.success) {
+          allCongViecDL = allCongViecDL.filter(x => x.id !== id);
+          toast('Đã xoá việc');
+          renderAgencyViewFromCache();
+          renderPendingTasks_();
+        } else {
+          alert('Không xoá được: ' + ((result && result.message) || 'lỗi không rõ'));
+        }
+      });
     }
 
     // Bấm để đánh dấu Đã xong / bỏ đánh dấu — 1 lệnh ghi duy nhất, cập nhật cache rồi vẽ lại.
@@ -3649,8 +3757,10 @@
 
       // Gộp các mục thành hàng ô tóm tắt (số lượng) — mặc định đóng hết, bấm ô nào mới mở nội dung ô đó
       // (chỉ mở 1 mục một lúc, bấm lại để đóng). Số đỏ = cần xử lý.
-      const tkConLai = groups.trienKhai.filter(t => !t.done).length;
-      const tkQuaHan = groups.trienKhai.filter(isQuaHan_).length;
+      const vrConLai = groups.viecRieng.filter(t => !t.done).length;
+      const tkConLai = groups.trienKhai.filter(t => !t.done).length + vrConLai;
+      const tkQuaHan = groups.trienKhai.filter(isQuaHan_).length + groups.viecRieng.filter(isQuaHan_).length;
+      const tkTong = groups.trienKhai.length + groups.viecRieng.length;
       const boSomN = groups.canGoMau.filter(i => i.boSom).length;
       const panels = [
         { id: 'thuhoi', icon: '🏢', label: 'CTY yêu cầu gỡ', n: groups.thuHoiCty.length, hot: groups.thuHoiCty.length > 0, color: 'border-purple-600',
@@ -3660,8 +3770,8 @@
         { id: 'tem', icon: '🏷️', label: 'Dán/thay tem', n: groups.temCanThay.length, hot: groups.temCanThay.length > 0, color: 'border-orange-500',
           body: renderTemCanThayInner(groups.temCanThay) },
         { id: 'trienkhai', icon: '📋', label: 'Việc cần làm', n: tkConLai, hot: tkConLai > 0, color: 'border-teal-500',
-          sub: tkQuaHan ? tkQuaHan + ' quá hạn' : (groups.trienKhai.length ? (groups.trienKhai.length - tkConLai) + '/' + groups.trienKhai.length + ' xong' : ''),
-          body: aiToolbarHtml_() + renderTrienKhaiInner(groups.trienKhai) },
+          sub: tkQuaHan ? tkQuaHan + ' quá hạn' : (tkTong ? (tkTong - tkConLai) + '/' + tkTong + ' xong' : ''),
+          body: renderViecRiengInner(groups.viecRieng) + '<p class="text-xs font-bold text-gray-500 uppercase mt-4 mb-1">Việc chung (áp cho mọi đại lý)</p>' + aiToolbarHtml_() + renderTrienKhaiInner(groups.trienKhai) },
         { id: 'sale', icon: '🔥', label: 'Đang Sale', n: groups.dangSale.length, hot: false, color: 'border-red-400',
           body: agencySectionInner(groups.dangSale, 'dangSale', 'Không có mã nào đang sale tại đại lý này') },
         { id: 'hethang', icon: '❌', label: 'Hết mẫu', n: groups.hetHang.length, hot: false, color: 'border-gray-400',
