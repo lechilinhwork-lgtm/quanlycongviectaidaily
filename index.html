@@ -873,6 +873,7 @@
     let allBangGia = {};
     let allTonKhoCty = {};
     let allThuHoiSet = new Set();
+    let allTemInfo = {};    // { 'Mã SAP': { code, face, size, price, link } } — đúng cột của file in tem giá
     let allTemQR = {};      // { 'dongtamshop.com/san-pham/...': 'Mã SAP' } từ sheet TemQR (link in trên mã QR của tem giá)
     let allQuanLyMau = {};   // { sapCode: { quyetDinh: 'Giữ'|'Xem lại'|'Bỏ mẫu sớm', nhom, lyDo, ghiChu, ten, kichThuoc } } từ sheet QuanLyMau
     let allTemCanThay = [];
@@ -1992,7 +1993,21 @@
       thuHoi(r) { allThuHoiSet = new Set(r.data); },
       quanLyMau(r) { allQuanLyMau = r.data || {}; },
       viecDL(r) { allCongViecDL = r.data || []; },
-      temQR(r) { const m = {}; (r.data || []).forEach(function(x) { m[normLink_(x[0])] = String(x[1]); }); allTemQR = m; },
+      temQR(r) {
+        // Mỗi dòng: [link, code, face, size, price, maSAP?]. Bố cục sheet mới (No|Code|Face|Size|Price|Link) không có Mã SAP -> khớp Code với Tên báo giá App của Products.
+        const byKey = {};
+        allProducts.forEach(function(p) { const k = keyMa_(p.tenApp); if (k) (byKey[k] = byKey[k] || []).push(p); });
+        const m = {}, info = {};
+        (r.data || []).forEach(function(x) {
+          let sap = x[5] ? String(x[5]) : '';
+          if (!sap && /^\d{6,}$/.test(String(x[1]))) sap = String(x[1]);              // bản API cũ trả [link, mãSAP]
+          if (!sap) { const hits = byKey[keyMa_(x[1])]; if (hits && hits.length === 1) sap = String(hits[0].sapCode); }
+          if (!sap) return;
+          m[normLink_(x[0])] = sap;
+          info[sap] = { code: String(x[1] || ''), face: String(x[2] || ''), size: String(x[3] || ''), price: String(x[4] || ''), link: String(x[0]) };
+        });
+        allTemQR = m; allTemInfo = info;
+      },
       tem(r) { allTemCanThay = r.data; },
       donHoi(r) { allDonHoi = r.data; },
       trienKhai(r) { trienKhaiLoadError = ''; allCongViec = r.tasks || []; allTrienKhai = r.progress || []; }
@@ -3882,6 +3897,85 @@
     function setHetSize(v) { hetSizeSel_ = (hetSizeSel_ === v) ? '' : v; refreshHetPanel_(); }
     function setHetNganh(v) { hetSizeNganh_ = v; hetSizeSel_ = ''; refreshHetPanel_(); }
 
+    // ===================== FILE IN TEM GIÁ (gửi phòng Trade) =====================
+    // Xuất Excel ĐÚNG bố cục file in tem giá: No | Code | Face | Size | Price included VAT | Link — để Sale gửi Trade in tem nhanh.
+    //  Code = Tên báo giá App · Face/Size/Link lấy từ sheet TemQR · Price = GIÁ LẺ HIỆN TẠI (bảng giá), nên tem in ra luôn đúng giá mới.
+    function giaTem_(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+    function soGia_(s) { return parseInt(String(s || '').replace(/[^0-9]/g, ''), 10) || 0; }
+
+    // Danh sách mã cần in theo phạm vi: 'thay' = mẫu đã ghi cần dán/thay tem · 'lech' = giá tem cũ khác giá lẻ hiện tại · 'all' = mọi mẫu đại lý đang có
+    function temGiaItems_(g, scope) {
+      const held = agencyHeldItems_(g);
+      if (scope === 'thay') {
+        const set = new Set(g.temCanThay.map(function(t) { return String(t.sapCode); }));
+        return allProducts.filter(function(p) { return set.has(String(p.sapCode)); });
+      }
+      if (scope === 'lech') {
+        return held.filter(function(i) {
+          const inf = allTemInfo[i.sapCode], now = allBangGia[i.sapCode] ? Math.round(allBangGia[i.sapCode].giaLe || 0) : 0;
+          return inf && now > 0 && soGia_(inf.price) !== now;
+        });
+      }
+      return held;
+    }
+    // Dựng bảng 6 cột như file in tem giá; mã chưa có link trong TemQR đưa sang danh sách riêng (không in được QR)
+    function buildTemGiaRows_(items) {
+      const rows = [['No', 'Code', 'Face', 'Size', 'Price included VAT', 'Link']], thieu = [];
+      const seen = new Set();
+      items.slice().sort(function(a, b) { return String(a.kichThuoc || '').localeCompare(String(b.kichThuoc || ''), 'vi', { numeric: true }) || String(a.tenApp).localeCompare(String(b.tenApp), 'vi', { numeric: true }); })
+        .forEach(function(i) {
+          const sap = String(i.sapCode); if (seen.has(sap)) return; seen.add(sap);
+          const inf = allTemInfo[sap], gia = allBangGia[sap] ? Math.round(allBangGia[sap].giaLe || 0) : 0;
+          if (!inf || !inf.link) { thieu.push(i); return; }
+          rows.push([rows.length, inf.code || i.tenApp, inf.face, inf.size || i.kichThuoc || '', gia > 0 ? giaTem_(gia) : inf.price, inf.link]);
+        });
+      return { rows: rows, thieu: thieu };
+    }
+
+    function openTemGia_() {
+      if (!currentAgencyForView) { alert('Vui lòng chọn đại lý rồi bấm Xem'); return; }
+      if (!Object.keys(allTemInfo).length) { alert('Chưa có dữ liệu sheet TemQR (danh sách link tem). Anh dán sheet TemQR vào Google Sheet rồi tải lại trang.'); return; }
+      const g = computeAgencyGroups(currentAgencyForView);
+      const opts = [['thay', 'Mẫu đã ghi cần dán/thay tem'], ['lech', 'Mẫu có GIÁ tem cũ khác giá lẻ hiện tại (cần in lại)'], ['all', 'Tất cả mẫu đại lý đang có']]
+        .map(function(o) { return [o[0], o[1], buildTemGiaRows_(temGiaItems_(g, o[0]))]; });
+      const first = (opts.find(function(o) { return o[2].rows.length > 1 || o[2].thieu.length; }) || opts[0])[0];
+      const ov = document.createElement('div');
+      ov.id = 'temGiaOverlay';
+      ov.className = 'fixed inset-0 z-[70] bg-black/60 flex items-end md:items-center justify-center p-3';
+      ov.innerHTML = '<div class="bg-white rounded-2xl w-full max-w-md p-4"><div class="flex justify-between items-start mb-1"><h3 class="font-bold text-lg">🏷️ File in tem giá</h3><button type="button" onclick="closeTemGia_()" class="text-xl px-2">✕</button></div>' +
+        '<p class="text-xs text-gray-500 mb-3">Đại lý: <b>' + escHtml_(currentAgencyForView) + '</b>. File đúng bố cục "File in tem giá" (No, Code, Face, Size, Price included VAT, Link), giá lấy theo bảng giá lẻ hiện tại.</p>' +
+        opts.map(function(o) {
+          return '<label class="flex items-center gap-3 p-3 border rounded-lg mb-2 cursor-pointer"><input type="radio" name="temGiaScope" value="' + o[0] + '" ' + (o[0] === first ? 'checked' : '') + ' class="w-5 h-5">' +
+            '<span class="flex-1 text-sm">' + o[1] + '</span><span class="font-bold text-lg">' + (o[2].rows.length - 1) + '</span></label>' +
+            (o[2].thieu.length ? '<p class="text-[11px] text-amber-700 -mt-1 mb-2 ml-1">⚠ ' + o[2].thieu.length + ' mã chưa có link trong TemQR — sẽ ở sheet 2 của file</p>' : '');
+        }).join('') +
+        '<button type="button" onclick="exportTemGia_()" class="w-full bg-gray-900 text-white px-4 py-3 rounded-lg font-semibold mt-1"><i class="fas fa-download"></i> Tải file in tem giá</button></div>';
+      document.body.appendChild(ov);
+    }
+    function closeTemGia_() { const ov = document.getElementById('temGiaOverlay'); if (ov && ov.remove) ov.remove(); }
+
+    function exportTemGia_() {
+      if (typeof XLSX === 'undefined') { alert('Chưa tải được thư viện xuất Excel, kiểm tra mạng rồi thử lại'); return; }
+      const sel = document.querySelector('input[name="temGiaScope"]:checked');
+      const scope = sel ? sel.value : 'thay';
+      const r = buildTemGiaRows_(temGiaItems_(computeAgencyGroups(currentAgencyForView), scope));
+      if (r.rows.length < 2 && !r.thieu.length) { alert('Không có mẫu nào thuộc nhóm này để in.'); return; }
+      const ws = XLSX.utils.aoa_to_sheet(r.rows);
+      ws['!cols'] = [3.73, 26.93, 4.27, 9.6, 15.4, 75.8].map(function(w) { return { wch: w }; });
+      Object.keys(ws).forEach(function(k) { if (k[0] !== '!' && k.charAt(0) !== 'A' && ws[k].t === 'n') { ws[k].t = 's'; ws[k].v = String(ws[k].v); } });   // chỉ cột No là số, còn lại là chữ như file gốc
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+      if (r.thieu.length) {
+        const rows2 = [['Mã chưa có link tem (Sale bổ sung vào sheet TemQR trước khi gửi Trade)', 'Mã SAP', 'Size']].concat(r.thieu.map(function(i) { return [i.tenApp || i.tenHang, i.sapCode, i.kichThuoc || '']; }));
+        const w2 = XLSX.utils.aoa_to_sheet(rows2); w2['!cols'] = [{ wch: 60 }, { wch: 12 }, { wch: 14 }];
+        XLSX.utils.book_append_sheet(wb, w2, 'Chua co link');
+      }
+      const safe = currentAgencyForView.replace(/[\\\/:*?"<>|]/g, '').slice(0, 40);
+      XLSX.writeFile(wb, 'File in tem giá - ' + safe + ' - ' + todayStr_() + '.xlsx');
+      closeTemGia_();
+      toast('Đã tải file in tem giá (' + (r.rows.length - 1) + ' mã' + (r.thieu.length ? ', ' + r.thieu.length + ' mã thiếu link ở sheet 2' : '') + ')');
+    }
+
     // ===================== QUÉT TEM QR KIỂM KÊ MẪU =====================
     // Quét QR trên tem giá (link dongtamshop.com/san-pham/...) -> tra ra Mã SAP qua sheet TemQR -> ghi nhận mẫu đại lý đang có.
     // Một tem chỉ được tính +1 khi nó VÀO khung hình sau khi đã rời khung ≥ SCAN_ABSENT_MS: giữ camera yên trên 1 tem không bị đếm đôi,
@@ -4192,6 +4286,9 @@
           <div class="flex gap-2 flex-wrap">
             <button onclick="exportAgencyExcel()" class="bg-white border border-green-600 text-green-700 px-4 py-2 rounded-lg hover:bg-green-50 flex items-center gap-2">
               <i class="fas fa-file-excel"></i> Tải Excel
+            </button>
+            <button onclick="openTemGia_()" class="bg-white border border-gray-700 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2">
+              <i class="fas fa-tag"></i> File in tem giá
             </button>
             <button onclick="submitAgencyBatch()" id="agencyBatchBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
               <i class="fas fa-check-circle"></i> Cập nhật hàng loạt
