@@ -3385,7 +3385,7 @@
         alert('Vui lòng chọn đại lý');
         return;
       }
-      if (currentAgencyForView !== agencyName) agencyOpenPanel_ = '';   // đổi đại lý -> đóng hết các mục
+      if (currentAgencyForView !== agencyName) { agencyOpenPanel_ = ''; agencySizeSel_ = ''; agencySizeNganh_ = 'all'; }   // đổi đại lý -> đóng hết các mục
       currentAgencyForView = agencyName;
       agencyEditCart = {};
       shareMode = false;           // đổi/tải lại đại lý -> thoát chế độ chọn mẫu chia sẻ
@@ -3779,6 +3779,66 @@
       });
     }
 
+    // ----- Xem mẫu đại lý đang CÓ, nhóm theo kích thước -----
+    // Gồm mọi mẫu có số lượng > 0 ở đại lý (đang Sale, còn hàng thường, cần gỡ, công ty yêu cầu gỡ). Chọn 1 cỡ để xem danh sách
+    // mẫu cỡ đó kèm ảnh; có thể lọc thêm Gạch / Ngói khi đại lý có ngói.
+    let agencySizeSel_ = '';         // '' = chưa chọn cỡ; '__all' = xem tất cả
+    let agencySizeNganh_ = 'all';
+    function agencyHeldItems_(g) {
+      return [].concat(g.thuHoiCty, g.canGoMau, g.dangSale, g.conHang).filter(i => i.tonKho > 0);
+    }
+    function sizeChipHtml_(val, label, on) {
+      return '<button type="button" data-v="' + escHtml_(val) + '" onclick="setAgencySize(this.dataset.v)" class="text-xs px-3 py-1.5 rounded-full border font-semibold ' +
+        (on ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700') + '">' + escHtml_(label) + '</button>';
+    }
+    function sizePanelHtml_(g) {
+      const all = agencyHeldItems_(g);
+      if (!all.length) return '<p class="text-gray-400 text-center py-4 text-sm">Đại lý này chưa có mẫu nào</p>';
+      const hasNgoi = all.some(i => nganhOf_(i) === 'ngoi');
+      if (!hasNgoi) agencySizeNganh_ = 'all';
+      const list = agencySizeNganh_ === 'all' ? all : all.filter(i => nganhOf_(i) === agencySizeNganh_);
+      const m = {};
+      list.forEach(i => { const k = i.kichThuoc || 'Khác'; m[k] = (m[k] || 0) + 1; });
+      const keys = Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b, 'vi', { numeric: true }));
+      if (agencySizeSel_ && agencySizeSel_ !== '__all' && !m[agencySizeSel_]) agencySizeSel_ = '';
+
+      let html = '';
+      if (hasNgoi) {
+        const nc = (k, label) => '<button type="button" data-v="' + k + '" onclick="setAgencySizeNganh(this.dataset.v)" class="text-xs px-3 py-1.5 rounded-lg border font-semibold ' +
+          (agencySizeNganh_ === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700') + '">' + label + '</button>';
+        const nGach = all.filter(i => nganhOf_(i) === 'gach').length, nNgoi = all.length - nGach;
+        html += '<div class="flex gap-2 flex-wrap mb-2">' + nc('all', 'Tất cả (' + all.length + ')') + nc('gach', '🧱 Gạch (' + nGach + ')') + nc('ngoi', '🏠 Ngói (' + nNgoi + ')') + '</div>';
+      }
+      html += '<p class="text-[11px] font-semibold text-gray-500 mb-1">Chọn kích thước (số mã đại lý đang có)</p><div class="flex gap-2 flex-wrap mb-3">' +
+        sizeChipHtml_('__all', 'Tất cả (' + list.length + ')', agencySizeSel_ === '__all') +
+        keys.map(k => sizeChipHtml_(k, k + ' (' + m[k] + ')', agencySizeSel_ === k)).join('') + '</div>';
+
+      if (!agencySizeSel_) return html + '<p class="text-gray-400 text-center py-3 text-sm">Bấm một kích thước ở trên để xem các mẫu</p>';
+      const show = (agencySizeSel_ === '__all' ? list : list.filter(i => (i.kichThuoc || 'Khác') === agencySizeSel_))
+        .slice().sort((a, b) => String(a.kichThuoc || '').localeCompare(String(b.kichThuoc || ''), 'vi', { numeric: true }) || String(a.tenApp).localeCompare(String(b.tenApp), 'vi', { numeric: true }));
+      const tongMau = show.reduce((s, i) => s + (i.tonKho || 0), 0);
+      html += '<p class="text-xs text-gray-600 mb-2"><b>' + show.length + '</b> mã · tổng <b>' + tongMau + '</b> mẫu tại đại lý</p>';
+      html += show.map(i => {
+        const badges = (i.thuHoiMau ? '<span class="text-[11px] font-bold text-purple-700">🏢 CTY yêu cầu gỡ</span> ' : '') +
+          (i.boSom ? '<span class="text-[11px] font-bold text-red-700">⛔ Bỏ sớm</span> ' : '') +
+          (!i.boSom && !i.thuHoiMau && TRANG_THAI_BO_MAU.includes(i.trangThaiHH) ? '<span class="text-[11px] font-bold text-orange-700">🔴 Cần gỡ</span> ' : '') +
+          (i.dangSale ? '<span class="text-[11px] font-bold text-red-600">🔥 Sale</span>' : '');
+        return '<div class="flex items-center gap-3 p-2.5 border rounded-lg mb-1.5 bg-white">' +
+          productImageThumb(i.sapCode, i.tenApp || i.tenHang, i.kichThuoc, currentAgencyForView) +
+          '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + escHtml_(i.tenApp || i.tenHang) + '</p>' +
+          '<p class="text-xs text-gray-500">' + escHtml_(i.kichThuoc || '') + ' · <span class="status-' + String(i.trangThaiHH).toLowerCase() + ' px-1.5 py-0.5 rounded text-[11px] font-semibold">' + escHtml_(i.trangThaiHH) + '</span></p>' +
+          (badges ? '<p class="mt-0.5">' + badges + '</p>' : '') + '</div>' +
+          '<div class="text-right flex-shrink-0"><p class="text-xl font-extrabold text-gray-800">' + i.tonKho + '</p><p class="text-[11px] text-gray-400">mẫu</p></div></div>';
+      }).join('');
+      return html;
+    }
+    function refreshSizePanel_() {
+      const body = document.getElementById('acc-kichthuoc-body');
+      if (body) body.innerHTML = sizePanelHtml_(computeAgencyGroups(currentAgencyForView));
+    }
+    function setAgencySize(v) { agencySizeSel_ = (agencySizeSel_ === v) ? '' : v; refreshSizePanel_(); }
+    function setAgencySizeNganh(v) { agencySizeNganh_ = v; agencySizeSel_ = ''; refreshSizePanel_(); }
+
     // Mục đang mở trong Checklist (rỗng = đóng hết). Giữ nguyên khi vẽ lại sau mỗi lần cập nhật.
     let agencyOpenPanel_ = '';
     function showAgencyPanel(id) {
@@ -3847,6 +3907,8 @@
         { id: 'trienkhai', icon: '📋', label: 'Việc cần làm', n: tkConLai, hot: tkConLai > 0, color: 'border-teal-500',
           sub: tkQuaHan ? tkQuaHan + ' quá hạn' : (tkTong ? (tkTong - tkConLai) + '/' + tkTong + ' xong' : ''),
           body: renderViecRiengInner(groups.viecRieng) + '<p class="text-xs font-bold text-gray-500 uppercase mt-4 mb-1">Việc chung (áp cho mọi đại lý)</p>' + aiToolbarHtml_() + renderTrienKhaiInner(groups.trienKhai) },
+        { id: 'kichthuoc', icon: '📐', label: 'Mẫu theo kích thước', n: agencyHeldItems_(groups).length, hot: false, color: 'border-indigo-500',
+          sub: (() => { const ks = new Set(agencyHeldItems_(groups).map(i => i.kichThuoc || 'Khác')); return ks.size ? ks.size + ' cỡ' : ''; })(), body: sizePanelHtml_(groups) },
         { id: 'sale', icon: '🔥', label: 'Đang Sale', n: groups.dangSale.length, hot: false, color: 'border-red-400',
           body: agencySectionInner(groups.dangSale, 'dangSale', 'Không có mã nào đang sale tại đại lý này') },
         { id: 'hethang', icon: '❌', label: 'Hết mẫu', n: groups.hetHang.length, hot: false, color: 'border-gray-400',
