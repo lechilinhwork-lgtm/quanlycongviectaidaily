@@ -3385,7 +3385,7 @@
         alert('Vui lòng chọn đại lý');
         return;
       }
-      if (currentAgencyForView !== agencyName) { agencyOpenPanel_ = ''; agencySizeSel_ = ''; agencySizeNganh_ = 'all'; }   // đổi đại lý -> đóng hết các mục
+      if (currentAgencyForView !== agencyName) { agencyOpenPanel_ = ''; agencySizeSel_ = ''; agencySizeNganh_ = 'all'; hetSizeSel_ = ''; hetSizeNganh_ = 'all'; }   // đổi đại lý -> đóng hết các mục
       currentAgencyForView = agencyName;
       agencyEditCart = {};
       shareMode = false;           // đổi/tải lại đại lý -> thoát chế độ chọn mẫu chia sẻ
@@ -3458,7 +3458,7 @@
           </div>
           <div class="flex items-center gap-2 mt-3 pt-3 border-t">
             <label class="text-xs text-gray-500">Số mẫu mới:</label>
-            <input type="number" min="0" id="${inputId}" value="${item.tonKho}"
+            <input type="number" min="0" id="${inputId}" value="${agencyEditCart[item.sapCode] ? agencyEditCart[item.sapCode].soLuong : item.tonKho}"
               onchange="markAgencyItemEdited('${item.sapCode}', '${tenAppEsc}', '${kichThuocEsc}', '${item.trangThaiHH}', this.value)"
               class="w-24 px-2 py-1 border rounded text-sm">
           </div>
@@ -3839,6 +3839,47 @@
     function setAgencySize(v) { agencySizeSel_ = (agencySizeSel_ === v) ? '' : v; refreshSizePanel_(); }
     function setAgencySizeNganh(v) { agencySizeNganh_ = v; agencySizeSel_ = ''; refreshSizePanel_(); }
 
+    // ----- "Hết mẫu" xem theo kích thước: chọn cỡ rồi mới hiện danh sách (thay vì dồn cả trăm mã) -----
+    let hetSizeSel_ = '';            // '' = chưa chọn; '__all' = tất cả
+    let hetSizeNganh_ = 'all';
+    function hetChipHtml_(val, label, on) {
+      return '<button type="button" data-v="' + escHtml_(val) + '" onclick="setHetSize(this.dataset.v)" class="text-xs px-3 py-1.5 rounded-full border font-semibold ' +
+        (on ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-700') + '">' + escHtml_(label) + '</button>';
+    }
+    function hetPanelHtml_(g) {
+      const all = g.hetHang;
+      if (!all.length) return '<p class="text-gray-400 text-center py-4 text-sm">Không thiếu mẫu nào</p>';
+      const hasNgoi = all.some(i => nganhOf_(i) === 'ngoi');
+      if (!hasNgoi) hetSizeNganh_ = 'all';
+      const list = hetSizeNganh_ === 'all' ? all : all.filter(i => nganhOf_(i) === hetSizeNganh_);
+      const m = {};
+      list.forEach(i => { const k = i.kichThuoc || 'Khác'; m[k] = (m[k] || 0) + 1; });
+      const keys = Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b, 'vi', { numeric: true }));
+      if (hetSizeSel_ && hetSizeSel_ !== '__all' && !m[hetSizeSel_]) hetSizeSel_ = '';
+
+      let html = '';
+      if (hasNgoi) {
+        const nc = (k, label) => '<button type="button" data-v="' + k + '" onclick="setHetNganh(this.dataset.v)" class="text-xs px-3 py-1.5 rounded-lg border font-semibold ' +
+          (hetSizeNganh_ === k ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700') + '">' + label + '</button>';
+        const nGach = all.filter(i => nganhOf_(i) === 'gach').length, nNgoi = all.length - nGach;
+        html += '<div class="flex gap-2 flex-wrap mb-2">' + nc('all', 'Tất cả (' + all.length + ')') + nc('gach', '🧱 Gạch (' + nGach + ')') + nc('ngoi', '🏠 Ngói (' + nNgoi + ')') + '</div>';
+      }
+      html += '<p class="text-[11px] font-semibold text-gray-500 mb-1">Chọn kích thước (số mã đang hết mẫu tại đại lý)</p><div class="flex gap-2 flex-wrap mb-3">' +
+        hetChipHtml_('__all', 'Tất cả (' + list.length + ')', hetSizeSel_ === '__all') +
+        keys.map(k => hetChipHtml_(k, k + ' (' + m[k] + ')', hetSizeSel_ === k)).join('') + '</div>';
+      if (!hetSizeSel_) return html + '<p class="text-gray-400 text-center py-3 text-sm">Bấm một kích thước ở trên để xem các mã hết mẫu</p>';
+      const show = hetSizeSel_ === '__all' ? list : list.filter(i => (i.kichThuoc || 'Khác') === hetSizeSel_);
+      const conCty = show.filter(i => i.tonKhoCongTy > 0).length;
+      html += '<p class="text-xs text-gray-600 mb-2"><b>' + show.length + '</b> mã hết mẫu · công ty còn hàng <b>' + conCty + '</b> mã</p>';
+      return html + '<div class="space-y-2">' + show.map(i => agencyItemCard(i, 'hetHang')).join('') + '</div>';
+    }
+    function refreshHetPanel_() {
+      const body = document.getElementById('acc-hethang-body');
+      if (body) body.innerHTML = hetPanelHtml_(computeAgencyGroups(currentAgencyForView));
+    }
+    function setHetSize(v) { hetSizeSel_ = (hetSizeSel_ === v) ? '' : v; refreshHetPanel_(); }
+    function setHetNganh(v) { hetSizeNganh_ = v; hetSizeSel_ = ''; refreshHetPanel_(); }
+
     // Mục đang mở trong Checklist (rỗng = đóng hết). Giữ nguyên khi vẽ lại sau mỗi lần cập nhật.
     let agencyOpenPanel_ = '';
     function showAgencyPanel(id) {
@@ -3912,7 +3953,7 @@
         { id: 'sale', icon: '🔥', label: 'Đang Sale', n: groups.dangSale.length, hot: false, color: 'border-red-400',
           body: agencySectionInner(groups.dangSale, 'dangSale', 'Không có mã nào đang sale tại đại lý này') },
         { id: 'hethang', icon: '❌', label: 'Hết mẫu', n: groups.hetHang.length, hot: false, color: 'border-gray-400',
-          body: agencySectionInner(groups.hetHang, 'hetHang', 'Không thiếu mẫu nào') },
+          body: hetPanelHtml_(groups) },
         { id: 'conhang', icon: '📦', label: 'Còn hàng thường', n: groups.conHang.length, hot: false, color: 'border-blue-300',
           body: agencySectionInner(groups.conHang, 'conHang', 'Không có sản phẩm nào') }
       ];
