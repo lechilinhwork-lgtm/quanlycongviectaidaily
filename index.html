@@ -873,6 +873,7 @@
     let allBangGia = {};
     let allTonKhoCty = {};
     let allThuHoiSet = new Set();
+    let allTemQR = {};      // { 'dongtamshop.com/san-pham/...': 'Mã SAP' } từ sheet TemQR (link in trên mã QR của tem giá)
     let allQuanLyMau = {};   // { sapCode: { quyetDinh: 'Giữ'|'Xem lại'|'Bỏ mẫu sớm', nhom, lyDo, ghiChu, ten, kichThuoc } } từ sheet QuanLyMau
     let allTemCanThay = [];
     let allDonHoi = [];
@@ -1692,7 +1693,7 @@
     // số ở callServer() bên dưới, khỏi phải sửa từng chỗ gọi.
     const AUTH_REQUIRED_FUNCS = [
       'updateStock', 'updateStockBatch', 'submitTemRequestBatch',
-      'updateTemTrangThai', 'submitDonHoiBatch', 'updateDonHoiTrangThai', 'setTrienKhai', 'getTaiKhoanAI', 'addAgency', 'setQuyetDinhMau', 'addCongViecDaiLy', 'setCongViecDaiLyTrangThai', 'xoaCongViecDaiLy'
+      'updateTemTrangThai', 'submitDonHoiBatch', 'updateDonHoiTrangThai', 'setTrienKhai', 'getTaiKhoanAI', 'addAgency', 'setQuyetDinhMau', 'addCongViecDaiLy', 'setCongViecDaiLyTrangThai', 'xoaCongViecDaiLy', 'logTemLaMa'
     ];
 
     // Trì hoãn 1 hàm cho tới khi người dùng NGỪNG gõ được `ms` mili-giây — dùng cho các ô tìm
@@ -1991,12 +1992,13 @@
       thuHoi(r) { allThuHoiSet = new Set(r.data); },
       quanLyMau(r) { allQuanLyMau = r.data || {}; },
       viecDL(r) { allCongViecDL = r.data || []; },
+      temQR(r) { const m = {}; (r.data || []).forEach(function(x) { m[normLink_(x[0])] = String(x[1]); }); allTemQR = m; },
       tem(r) { allTemCanThay = r.data; },
       donHoi(r) { allDonHoi = r.data; },
       trienKhai(r) { trienKhaiLoadError = ''; allCongViec = r.tasks || []; allTrienKhai = r.progress || []; }
     };
     function applyBoot_(b) {
-      ['agencies', 'products', 'stock', 'bangGia', 'tonKhoCty', 'thuHoi', 'quanLyMau', 'viecDL', 'tem', 'donHoi', 'trienKhai'].forEach(function(k) {
+      ['agencies', 'products', 'stock', 'bangGia', 'tonKhoCty', 'thuHoi', 'quanLyMau', 'viecDL', 'temQR', 'tem', 'donHoi', 'trienKhai'].forEach(function(k) {
         if (b[k] && b[k].success) { try { APPLY_[k](b[k]); } catch (e) { console.error('applyBoot_', k, e); } }
         else if (k === 'trienKhai') trienKhaiLoadError = (b[k] && b[k].message) || 'Không tải được dữ liệu';
       });
@@ -3880,6 +3882,290 @@
     function setHetSize(v) { hetSizeSel_ = (hetSizeSel_ === v) ? '' : v; refreshHetPanel_(); }
     function setHetNganh(v) { hetSizeNganh_ = v; hetSizeSel_ = ''; refreshHetPanel_(); }
 
+    // ===================== QUÉT TEM QR KIỂM KÊ MẪU =====================
+    // Quét QR trên tem giá (link dongtamshop.com/san-pham/...) -> tra ra Mã SAP qua sheet TemQR -> ghi nhận mẫu đại lý đang có.
+    // Một tem chỉ được tính +1 khi nó VÀO khung hình sau khi đã rời khung ≥ SCAN_ABSENT_MS: giữ camera yên trên 1 tem không bị đếm đôi,
+    // chuyển sang viên thứ 2 cùng mã thì +1. Chạy bằng BarcodeDetector (Chrome Android, quét nhiều tem 1 khung) hoặc jsQR (iPhone, từng tem).
+    const SCAN_ABSENT_MS = 700;
+    const SCAN_NO_DONG = new Set(['BM', 'MD', 'NSX']);
+    let scanSt_ = null;
+
+    function normLink_(u) {
+      return String(u || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('#')[0].split('?')[0].replace(/\/+$/, '');
+    }
+    function keyMa_(v) { return String(v || '').toLowerCase().replace(/\+/g, '').replace(/[^a-z0-9]+/g, ''); }
+
+    // Tra 1 chuỗi quét được -> { sap } hoặc { unknown }
+    function resolveScan_(text) {
+      const nl = normLink_(text);
+      if (allTemQR[nl]) return { sap: allTemQR[nl] };
+      // Dự phòng: link dongtamshop mà đuôi trùng đúng 1 "Tên báo giá App" (tem in ngoài danh sách)
+      if (nl.indexOf('dongtamshop.com/') === 0) {
+        const seg = nl.split('/').pop().replace(/[^a-z0-9]/g, '');
+        if (seg.length >= 6) {
+          const hits = allProducts.filter(function(p) { const k = keyMa_(p.tenApp); return k.length >= 6 && (seg === k || seg.slice(-k.length) === k); });
+          if (hits.length === 1) return { sap: String(hits[0].sapCode) };
+        }
+      }
+      return { unknown: String(text).trim().slice(0, 500) };
+    }
+
+    // Xử lý 1 lần "thấy" tem. now = mili-giây. Trả về kết quả nếu được tính, null nếu tem vẫn đang trong khung.
+    function scanHit_(st, text, now) {
+      const key = normLink_(text) || String(text);
+      const last = st.seen[key];
+      st.seen[key] = now;
+      if (last !== undefined && now - last < SCAN_ABSENT_MS) return null;
+      const r = resolveScan_(text);
+      if (r.sap) {
+        st.counts[r.sap] = (st.counts[r.sap] || 0) + 1;
+        st.order = [r.sap].concat(st.order.filter(function(x) { return x !== r.sap; }));
+        return { type: 'ok', sap: r.sap };
+      }
+      st.unknown[r.unknown] = (st.unknown[r.unknown] || 0) + 1;
+      return { type: 'unknown', link: r.unknown };
+    }
+
+    function scanBeep_(kind) {
+      try {
+        const ac = scanSt_ && scanSt_.ac; if (!ac) return;
+        const t = ac.currentTime;
+        (kind === 'ok' ? [[880, 0, 0.09]] : [[330, 0, 0.1], [330, 0.15, 0.1]]).forEach(function(b) {
+          const o = ac.createOscillator(), gn = ac.createGain();
+          o.frequency.value = b[0]; o.type = 'sine'; gn.gain.value = 0.15;
+          o.connect(gn); gn.connect(ac.destination); o.start(t + b[1]); o.stop(t + b[1] + b[2]);
+        });
+      } catch (e) {}
+      try { if (navigator.vibrate) navigator.vibrate(kind === 'ok' ? 60 : [60, 60, 60]); } catch (e) {}
+    }
+
+    function scanHeld_(sap) { return (allStock[sap] && allStock[sap][scanSt_.agency]) || 0; }
+    function scanProd_(sap) { return allProducts.find(function(p) { return String(p.sapCode) === String(sap); }) || { sapCode: sap, tenApp: sap, kichThuoc: '', trangThaiHH: '' }; }
+
+    function scanRowHtml_(sap) {
+      const p = scanProd_(sap), n = scanSt_.counts[sap] || 0, app = scanHeld_(sap);
+      const so = app === 0 ? '<span class="text-green-700 font-semibold">🟢 Mới thấy</span>' : (app === n ? '<span class="text-gray-500">⚪ Khớp (app ghi ' + app + ')</span>' : '<span class="text-amber-700 font-semibold">🟡 App ghi ' + app + '</span>');
+      const warn = (allThuHoiSet.has(sap) ? '<span class="text-purple-700 font-bold text-[11px]">🏢 CTY yêu cầu gỡ </span>' : '') +
+        ((allQuanLyMau[sap] && allQuanLyMau[sap].quyetDinh === 'Bỏ mẫu sớm') ? '<span class="text-red-700 font-bold text-[11px]">⛔ Bỏ sớm </span>' : '') +
+        (SCAN_NO_DONG.has(p.trangThaiHH) ? '<span class="text-orange-700 font-bold text-[11px]">🔴 Cần gỡ </span>' : '') +
+        ((allBangGia[sap] && allBangGia[sap].dangSale) ? '<span class="text-red-600 font-bold text-[11px]">🔥 Sale — kiểm tra tem sale</span>' : '');
+      return '<div class="flex items-center gap-2 p-2 border rounded-lg mb-1.5 bg-white"><div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + escHtml_(p.tenApp || sap) + '</p>' +
+        '<p class="text-xs text-gray-500">' + escHtml_(p.kichThuoc || '') + ' · ' + escHtml_(p.trangThaiHH || '') + ' · ' + so + '</p>' + (warn ? '<p class="mt-0.5">' + warn + '</p>' : '') + '</div>' +
+        '<div class="flex items-center gap-1 flex-shrink-0"><button type="button" data-s="' + escHtml_(sap) + '" onclick="scanAdjust_(this.dataset.s,-1)" class="w-9 h-9 rounded-lg border text-lg font-bold">−</button>' +
+        '<span class="w-8 text-center text-xl font-extrabold">' + n + '</span>' +
+        '<button type="button" data-s="' + escHtml_(sap) + '" onclick="scanAdjust_(this.dataset.s,1)" class="w-9 h-9 rounded-lg border text-lg font-bold">+</button></div></div>';
+    }
+    function renderScanList_() {
+      const st = scanSt_; if (!st) return;
+      const el = document.getElementById('scanList'); if (!el) return;
+      const tong = st.order.reduce(function(s, k) { return s + (st.counts[k] || 0); }, 0);
+      const nUnk = Object.keys(st.unknown).length;
+      document.getElementById('scanSummary').textContent = 'Đã quét ' + st.order.length + ' mã · ' + tong + ' viên' + (nUnk ? ' · ' + nUnk + ' tem lạ' : '');
+      el.innerHTML = st.order.length ? st.order.map(scanRowHtml_).join('') : '<p class="text-center text-gray-400 text-sm py-4">Đưa camera vào mã QR trên tem giá</p>';
+    }
+    function scanAdjust_(sap, d) {
+      const st = scanSt_; if (!st) return;
+      const n = Math.max(0, (st.counts[sap] || 0) + d);
+      if (n === 0) { delete st.counts[sap]; st.order = st.order.filter(function(x) { return x !== sap; }); } else st.counts[sap] = n;
+      renderScanList_();
+    }
+
+    function ensureJsQR_() {
+      return new Promise(function(res, rej) {
+        if (window.jsQR) { res(); return; }
+        const sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+        sc.onload = function() { res(); }; sc.onerror = function() { rej(new Error('Không tải được thư viện quét mã')); };
+        document.head.appendChild(sc);
+      });
+    }
+
+    async function openScan_() {
+      if (!currentAgencyForView) { alert('Vui lòng chọn đại lý rồi bấm Xem'); return; }
+      if (!Object.keys(allTemQR).length) { alert('Chưa có dữ liệu tem QR. Anh dán sheet TemQR vào Google Sheet rồi tải lại trang.'); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { alert('Máy quét tem chỉ chạy ở bản web (HTTPS) và trình duyệt có hỗ trợ camera. Trong bản Apps Script camera bị chặn.'); return; }
+      scanSt_ = { agency: currentAgencyForView, counts: {}, order: [], unknown: {}, seen: {}, running: false, stream: null, detector: null, torch: false, busy: false, last: 0 };
+      try { scanSt_.ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+      const ov = document.createElement('div');
+      ov.id = 'scanOverlay';
+      ov.className = 'fixed inset-0 z-[70] bg-black flex flex-col';
+      ov.innerHTML =
+        '<div class="flex items-center justify-between px-3 py-2 text-white"><div class="min-w-0"><p class="text-xs text-gray-300">Quét tem kiểm kê</p><p class="font-bold truncate">' + escHtml_(scanSt_.agency) + '</p></div>' +
+        '<div class="flex gap-2"><button id="scanTorch" type="button" onclick="scanTorch_()" class="hidden w-10 h-10 rounded-full bg-white/20">🔦</button><button type="button" onclick="closeScan_()" class="w-10 h-10 rounded-full bg-white/20 text-xl">✕</button></div></div>' +
+        '<div id="scanCam" class="relative flex-1 min-h-[30vh] bg-black overflow-hidden"><video id="scanVideo" playsinline muted autoplay class="absolute inset-0 w-full h-full object-cover"></video>' +
+        '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><div class="w-60 h-60 border-4 border-white/70 rounded-2xl"></div></div>' +
+        '<div id="scanMsg" class="absolute bottom-2 left-0 right-0 text-center text-white text-sm px-3"></div></div>' +
+        '<div class="bg-white rounded-t-2xl p-3 max-h-[46vh] flex flex-col"><div class="flex items-center justify-between mb-2"><p id="scanSummary" class="font-bold text-sm"></p>' +
+        '<button type="button" onclick="scanReview_()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">Xong — xem lại</button></div>' +
+        '<div id="scanList" class="overflow-y-auto flex-1"></div></div>';
+      document.body.appendChild(ov);
+      renderScanList_();
+      await startScanCam_();
+    }
+
+    async function startScanCam_() {
+      const st = scanSt_; if (!st) return;
+      const msg = document.getElementById('scanMsg');
+      try {
+        st.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      } catch (e) {
+        if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">Không mở được camera: ' + escHtml_(e && e.name === 'NotAllowedError' ? 'anh chưa cho phép dùng camera cho trang này' : (e && e.message) || 'lỗi không rõ') + '</span>';
+        return;
+      }
+      const v = document.getElementById('scanVideo');
+      v.srcObject = st.stream;
+      try { await v.play(); } catch (e) {}
+      try { const tr = st.stream.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {}; if (cap.torch) document.getElementById('scanTorch').classList.remove('hidden'); } catch (e) {}
+      // Chọn bộ quét: BarcodeDetector có sẵn (nhanh, nhiều mã/khung) hoặc jsQR
+      try { if (window.BarcodeDetector) { st.detector = new BarcodeDetector({ formats: ['qr_code'] }); } } catch (e) { st.detector = null; }
+      if (!st.detector) {
+        try { if (msg) msg.textContent = 'Đang tải bộ quét mã...'; await ensureJsQR_(); } catch (e) { if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">' + escHtml_(e.message) + '</span>'; return; }
+        st.cv = document.createElement('canvas');
+      }
+      if (msg) msg.textContent = 'Đưa camera vào mã QR trên tem · chuyển sang tem khác để đếm thêm';
+      st.running = true;
+      requestAnimationFrame(scanLoop_);
+    }
+
+    async function scanDetect_() {
+      const st = scanSt_, v = document.getElementById('scanVideo');
+      if (!v || v.readyState < 2 || !v.videoWidth) return [];
+      if (st.detector) {
+        const r = await st.detector.detect(v);
+        return r.map(function(b) { return b.rawValue; });
+      }
+      const k = Math.min(1, 720 / v.videoWidth), w = Math.round(v.videoWidth * k), hh = Math.round(v.videoHeight * k);
+      st.cv.width = w; st.cv.height = hh;
+      const cx = st.cv.getContext('2d', { willReadFrequently: true });
+      cx.drawImage(v, 0, 0, w, hh);
+      const d = cx.getImageData(0, 0, w, hh), r = window.jsQR(d.data, w, hh, { inversionAttempts: 'dontInvert' });
+      return r && r.data ? [r.data] : [];
+    }
+
+    function scanLoop_() {
+      const st = scanSt_;
+      if (!st || !st.running) return;
+      const now = Date.now();
+      if (!st.busy && now - st.last >= (st.detector ? 110 : 180)) {
+        st.busy = true; st.last = now;
+        scanDetect_().then(function(texts) {
+          const t = Date.now();
+          let changed = false;
+          texts.forEach(function(tx) {
+            const r = scanHit_(st, tx, t);
+            if (r) { changed = true; scanBeep_(r.type === 'ok' ? 'ok' : 'unknown'); }
+          });
+          if (changed) renderScanList_();
+        }).catch(function() {}).then(function() { st.busy = false; });
+      }
+      requestAnimationFrame(scanLoop_);
+    }
+
+    function scanTorch_() {
+      const st = scanSt_; if (!st || !st.stream) return;
+      st.torch = !st.torch;
+      try { st.stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: st.torch }] }); } catch (e) {}
+    }
+    function stopScanCam_() {
+      const st = scanSt_; if (!st) return;
+      st.running = false;
+      try { if (st.stream) st.stream.getTracks().forEach(function(t) { t.stop(); }); } catch (e) {}
+      st.stream = null;
+    }
+    function closeScan_(force) {
+      const st = scanSt_;
+      if (st && !force && (st.order.length || Object.keys(st.unknown).length) && !confirm('Thoát và bỏ kết quả vừa quét?')) return;
+      stopScanCam_();
+      try { if (st && st.ac && st.ac.close) st.ac.close(); } catch (e) {}
+      const ov = document.getElementById('scanOverlay'); if (ov && ov.remove) ov.remove();
+      scanSt_ = null;
+    }
+
+    // ----- Bước xem lại & cập nhật -----
+    // Chênh lệch so với số đang ghi trong app: mới thấy / quét nhiều hơn -> mặc định tick cập nhật; quét ít hơn -> mặc định giữ số cũ.
+    // Mã app ghi có nhưng không quét thấy: liệt kê riêng, KHÔNG tự đặt về 0 (phải tick từng mã).
+    function buildScanReview_(st) {
+      const upd = [], missing = [];
+      st.order.forEach(function(sap) {
+        const n = st.counts[sap] || 0, old = (allStock[sap] && allStock[sap][st.agency]) || 0;
+        if (n !== old) upd.push({ sap: sap, old: old, now: n, def: n > old });
+      });
+      Object.keys(allStock).forEach(function(sap) {
+        const old = (allStock[sap] && allStock[sap][st.agency]) || 0;
+        if (old > 0 && !st.counts[sap]) missing.push({ sap: sap, old: old });
+      });
+      missing.sort(function(a, b) { return scanProd_(a.sap).kichThuoc.localeCompare(scanProd_(b.sap).kichThuoc, 'vi', { numeric: true }) || String(scanProd_(a.sap).tenApp).localeCompare(String(scanProd_(b.sap).tenApp), 'vi', { numeric: true }); });
+      return { upd: upd, missing: missing, unknown: Object.keys(st.unknown).map(function(l) { return { link: l, n: st.unknown[l] }; }) };
+    }
+
+    function scanReview_() {
+      const st = scanSt_; if (!st) return;
+      stopScanCam_();
+      const rv = buildScanReview_(st); st.review = rv;
+      const ov = document.getElementById('scanOverlay');
+      const row = function(it, kind, idx) {
+        const p = scanProd_(it.sap);
+        return '<label class="flex items-center gap-3 p-2.5 border rounded-lg mb-1.5 bg-white"><input type="checkbox" class="scan-cb w-6 h-6 flex-shrink-0" data-k="' + kind + '" data-i="' + idx + '" ' + (it.def ? 'checked' : '') + '>' +
+          '<span class="flex-1 min-w-0"><span class="block font-semibold text-sm truncate">' + escHtml_(p.tenApp || it.sap) + '</span><span class="block text-xs text-gray-500">' + escHtml_(p.kichThuoc || '') + ' · ' + escHtml_(p.trangThaiHH || '') + '</span></span>' +
+          '<span class="text-sm font-bold flex-shrink-0">' + it.old + ' → <span class="' + (kind === 'm' ? 'text-red-600' : 'text-green-700') + '">' + (kind === 'm' ? 0 : it.now) + '</span></span></label>';
+      };
+      let html = '<div class="flex items-center justify-between px-3 py-2 text-white"><p class="font-bold">Xem lại — ' + escHtml_(st.agency) + '</p><button type="button" onclick="closeScan_()" class="w-10 h-10 rounded-full bg-white/20 text-xl">✕</button></div>' +
+        '<div class="flex-1 overflow-y-auto bg-gray-100 p-3">';
+      html += '<p class="text-xs font-bold text-gray-600 mb-1">✅ CẬP NHẬT số mẫu (' + rv.upd.length + ')</p>' + (rv.upd.length ? rv.upd.map(function(u, i) { return row(u, 'u', i); }).join('') : '<p class="text-sm text-gray-400 mb-2">Không có mã nào thay đổi — số quét khớp số đang ghi.</p>');
+      if (rv.missing.length) {
+        rv.missing.forEach(function(m) { m.def = false; });
+        html += '<p class="text-xs font-bold text-gray-600 mt-3 mb-1">❓ App ghi có nhưng KHÔNG quét thấy (' + rv.missing.length + ') — tick mã nào đã gỡ để đặt về 0</p>' + rv.missing.map(function(m, i) { return row(m, 'm', i); }).join('');
+      }
+      if (rv.unknown.length) html += '<p class="text-xs font-bold text-gray-600 mt-3 mb-1">🔗 Tem lạ chưa có trong danh sách (' + rv.unknown.length + ') — sẽ được lưu vào sheet TemQR_LaMa</p>' + rv.unknown.map(function(u) { return '<p class="text-xs text-gray-600 break-all mb-1">' + escHtml_(u.link) + ' (×' + u.n + ')</p>'; }).join('');
+      html += '</div><div class="bg-white p-3 flex gap-2"><button type="button" onclick="scanBack_()" class="flex-1 border px-4 py-3 rounded-lg font-semibold">← Quét tiếp</button>' +
+        '<button type="button" id="scanApply" onclick="scanApply_()" class="flex-1 bg-green-600 text-white px-4 py-3 rounded-lg font-semibold">Cập nhật</button></div>';
+      ov.innerHTML = html;
+    }
+
+    function scanBack_() {
+      const st = scanSt_; if (!st) return;
+      const keep = { agency: st.agency, counts: st.counts, order: st.order, unknown: st.unknown, ac: st.ac };
+      closeScanUiOnly_();
+      openScanResume_(keep);
+    }
+    function closeScanUiOnly_() { const ov = document.getElementById('scanOverlay'); if (ov && ov.remove) ov.remove(); }
+    async function openScanResume_(keep) {
+      await openScan_();
+      if (scanSt_) { scanSt_.counts = keep.counts; scanSt_.order = keep.order; scanSt_.unknown = keep.unknown; renderScanList_(); }
+    }
+
+    function scanApply_() {
+      const st = scanSt_; if (!st || !st.review) return;
+      const items = [];
+      document.querySelectorAll('.scan-cb').forEach(function(cb) {
+        if (!cb.checked) return;
+        const it = (cb.dataset.k === 'm' ? st.review.missing : st.review.upd)[parseInt(cb.dataset.i, 10)];
+        if (!it) return;
+        const p = scanProd_(it.sap);
+        items.push({ sapCode: it.sap, tenApp: p.tenApp, kichThuoc: p.kichThuoc, trangThaiHH: p.trangThaiHH, soLuong: cb.dataset.k === 'm' ? 0 : it.now });
+      });
+      const lamat = st.review.unknown.map(function(u) { return { link: u.link, count: u.n }; });
+      const agency = st.agency;
+      const done = function(msg) {
+        if (lamat.length) callServer('logTemLaMa', [lamat, agency], function() {});
+        closeScan_(true);
+        toast(msg);
+        renderAgencyViewFromCache();
+      };
+      if (!items.length) { done('Không có mã nào được cập nhật' + (lamat.length ? ' — đã lưu ' + lamat.length + ' tem lạ' : '')); return; }
+      const btn = document.getElementById('scanApply');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="loading-spinner"></span> Đang cập nhật...'; }
+      callServer('updateStockBatch', [agency, items], function(result) {
+        if (result && result.success) {
+          items.forEach(function(it) { if (!allStock[it.sapCode]) allStock[it.sapCode] = {}; allStock[it.sapCode][agency] = it.soLuong; });
+          done('Đã cập nhật ' + result.count + ' mã tại ' + agency + (result.notFound && result.notFound.length ? ' (' + result.notFound.length + ' mã chưa có dòng trong Stock_by_Agency)' : ''));
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = 'Cập nhật'; }
+          alert('Lỗi: ' + ((result && result.message) || 'không cập nhật được'));
+        }
+      });
+    }
+
     // Mục đang mở trong Checklist (rỗng = đóng hết). Giữ nguyên khi vẽ lại sau mỗi lần cập nhật.
     let agencyOpenPanel_ = '';
     function showAgencyPanel(id) {
@@ -3913,6 +4199,8 @@
           </div>
         </div>
       `;
+
+      html += '<button type="button" onclick="openScan_()" class="w-full mb-3 bg-gray-900 text-white px-4 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 active:bg-gray-700"><i class="fas fa-qrcode"></i> 📷 Quét tem kiểm kê mẫu tại đại lý</button>';
 
       // Ô "Thêm nhanh" dùng chung — tìm mã 1 lần, chọn hành động ngay tại chỗ
       // (Gỡ mẫu / Ghi tem cần thay / Ghi đơn hỏi) thay vì phải mở tab khác.
