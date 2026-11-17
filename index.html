@@ -1711,10 +1711,14 @@
     // ngay — vì 8 lệnh tải chạy song song, có lệnh về chậm hơn (đơn hỏi/tem cần thay chẳng hạn);
     // nếu Sale bấm "Xem" quá sớm (trước khi tải xong hết) mà không tự vẽ lại thì sẽ tưởng nhầm
     // là mất dữ liệu trong khi thực ra chỉ là chưa tải kịp.
+    let refreshAgTimer_ = null;
     function refreshAgencyViewIfOpen_() {
-      if (currentAgencyForView) renderAgencyViewFromCache();
-      if (currentTab === 'donhoi') renderDonHoiTab();
-      renderManagerReport();
+      clearTimeout(refreshAgTimer_);   // 8 lệnh tải về liên tiếp -> chỉ vẽ lại 1 lần cho đỡ đứng máy
+      refreshAgTimer_ = setTimeout(function() {
+        if (currentAgencyForView) renderAgencyViewFromCache();
+        if (currentTab === 'donhoi') renderDonHoiTab();
+        renderManagerReport();
+      }, 120);
     }
 
     // ===== Báo cáo tổng quan theo đại lý (chỉ Quản lý thấy) — tính hoàn toàn từ cache, dùng
@@ -1733,7 +1737,14 @@
       renderManagerReport();
     }
 
+    // Gộp nhiều lần gọi liên tiếp (8 lệnh tải dữ liệu về lần lượt) thành 1 lần vẽ — báo cáo này
+    // tính cho toàn bộ đại lý nên rất nặng nếu vẽ lại mỗi lần.
+    let mgrRptTimer_ = null;
     function renderManagerReport() {
+      clearTimeout(mgrRptTimer_);
+      mgrRptTimer_ = setTimeout(renderManagerReportNow_, 250);
+    }
+    function renderManagerReportNow_() {
       const section = document.getElementById('managerReportSection');
       if (!section || section.classList.contains('hidden')) return;
       if (!allAgencies.length || !allProducts.length) return;
@@ -2484,13 +2495,18 @@
     let showAllAgencies = false;
 
     // Bỏ dấu tiếng Việt để so khớp/tìm kiếm không phân biệt dấu (VD: "hung loc" khớp "Hưng Lộc").
+    // Có nhớ kết quả (cache) + tạo biểu thức dò dấu 1 lần duy nhất — trước đây mỗi lần gọi tạo lại,
+    // mà màn hình tính cho cả trăm đại lý gọi hàng chục nghìn lần nên máy yếu bị đứng.
+    const NORM_CACHE_ = new Map();
+    const DIACRITIC_RE_ = new RegExp('[' + String.fromCharCode(768) + '-' + String.fromCharCode(879) + ']', 'g');
     function normalizeVN(str) {
-      var lo = String.fromCharCode(768);
-      var hi = String.fromCharCode(879);
-      var diacriticRe = new RegExp('[' + lo + '-' + hi + ']', 'g');
-      return (str || '').toString().toLowerCase()
-        .normalize('NFD').replace(diacriticRe, '')
-        .replace(/đ/g, 'd');
+      const key = (str === null || str === undefined) ? '' : String(str);
+      let r = NORM_CACHE_.get(key);
+      if (r !== undefined) return r;
+      r = key.toLowerCase().normalize('NFD').replace(DIACRITIC_RE_, '').replace(/đ/g, 'd');
+      if (NORM_CACHE_.size > 20000) NORM_CACHE_.clear();
+      NORM_CACHE_.set(key, r);
+      return r;
     }
 
     function computeMyAgencies() {
