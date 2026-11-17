@@ -3632,14 +3632,21 @@
       renderScanList_();
     }
 
+    // Thư viện giải mã QR cho máy không có BarcodeDetector (iPhone/Safari). Thử lần lượt vài nguồn, nguồn nào tải được thì dùng.
+    const JSQR_URLS_ = ['https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js', 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'];
     function ensureJsQR_() {
-      return new Promise(function(res, rej) {
-        if (window.jsQR) { res(); return; }
-        const sc = document.createElement('script');
-        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
-        sc.onload = function() { res(); }; sc.onerror = function() { rej(new Error('Không tải được thư viện quét mã')); };
-        document.head.appendChild(sc);
-      });
+      if (window.jsQR) return Promise.resolve();
+      if (window.__jsqrLoading_) return window.__jsqrLoading_;
+      const loadOne = function(url) {
+        return new Promise(function(res, rej) {
+          const sc = document.createElement('script');
+          sc.src = url; sc.onload = function() { window.jsQR ? res() : rej(new Error('jsQR rỗng')); }; sc.onerror = function() { rej(new Error('lỗi tải ' + url)); };
+          document.head.appendChild(sc);
+        });
+      };
+      window.__jsqrLoading_ = JSQR_URLS_.reduce(function(p, u) { return p.catch(function() { return loadOne(u); }); }, Promise.reject(new Error('start')))
+        .catch(function() { window.__jsqrLoading_ = null; throw new Error('Không tải được thư viện quét mã (kiểm tra mạng)'); });
+      return window.__jsqrLoading_;
     }
 
     async function openScan_() {
@@ -3656,7 +3663,8 @@
         '<div class="flex gap-2"><button id="scanTorch" type="button" onclick="scanTorch_()" class="hidden w-10 h-10 rounded-full bg-white/20">🔦</button><button type="button" onclick="closeScan_()" class="w-10 h-10 rounded-full bg-white/20 text-xl">✕</button></div></div>' +
         '<div id="scanCam" class="relative flex-1 min-h-[30vh] bg-black overflow-hidden"><video id="scanVideo" playsinline muted autoplay class="absolute inset-0 w-full h-full object-cover"></video>' +
         '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><div class="w-60 h-60 border-4 border-white/70 rounded-2xl"></div></div>' +
-        '<div id="scanMsg" class="absolute bottom-2 left-0 right-0 text-center text-white text-sm px-3"></div></div>' +
+        '<div id="scanMsg" class="absolute bottom-2 left-0 right-0 text-center text-white text-sm px-3"></div>' +
+        '<label class="absolute top-3 left-3 bg-white/90 text-gray-900 text-sm font-semibold px-3 py-2 rounded-lg cursor-pointer">📸 Chụp ảnh tem<input type="file" accept="image/*" capture="environment" class="hidden" onchange="scanFromPhoto_(this)"></label></div>' +
         '<div class="bg-white rounded-t-2xl p-3 max-h-[46vh] flex flex-col"><div class="flex items-center justify-between mb-2"><p id="scanSummary" class="font-bold text-sm"></p>' +
         '<button type="button" onclick="scanReview_()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">Xong — xem lại</button></div>' +
         '<div id="scanList" class="overflow-y-auto flex-1"></div></div>';
@@ -3669,9 +3677,12 @@
       const st = scanSt_; if (!st) return;
       const msg = document.getElementById('scanMsg');
       try {
-        st.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+        st.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       } catch (e) {
-        if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">Không mở được camera: ' + escHtml_(e && e.name === 'NotAllowedError' ? 'anh chưa cho phép dùng camera cho trang này' : (e && e.message) || 'lỗi không rõ') + '</span>';
+        const inApp = /Zalo|FBAN|FBAV|FB_IAB|Messenger|Instagram|Line\/|MicroMessenger/i.test(navigator.userAgent || '');
+        let why = (e && e.name === 'NotAllowedError') ? 'chưa được cho phép dùng camera. iPhone: Cài đặt → Safari → Camera → Cho phép' : ((e && e.message) || 'lỗi không rõ');
+        if (inApp) why = 'đang mở trong ứng dụng (Zalo/Facebook) nên camera bị chặn. Bấm ⋯ → "Mở bằng Safari/Chrome". Hoặc dùng nút 📸 Chụp ảnh tem';
+        if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">Không mở được camera: ' + escHtml_(why) + '</span>';
         return;
       }
       const v = document.getElementById('scanVideo');
@@ -3684,7 +3695,7 @@
         try { if (msg) msg.textContent = 'Đang tải bộ quét mã...'; await ensureJsQR_(); } catch (e) { if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">' + escHtml_(e.message) + '</span>'; return; }
         st.cv = document.createElement('canvas');
       }
-      if (msg) msg.textContent = 'Đưa camera vào mã QR trên tem · chuyển sang tem khác để đếm thêm';
+      if (msg) msg.textContent = 'Đưa camera vào mã QR trên tem · chuyển sang tem khác để đếm thêm' + (st.detector ? '' : ' (bộ quét iPhone)');
       st.running = true;
       requestAnimationFrame(scanLoop_);
     }
@@ -3696,10 +3707,15 @@
         const r = await st.detector.detect(v);
         return r.map(function(b) { return b.rawValue; });
       }
-      const k = Math.min(1, 720 / v.videoWidth), w = Math.round(v.videoWidth * k), hh = Math.round(v.videoHeight * k);
+      st.tick = (st.tick || 0) + 1;
+      const vw = v.videoWidth, vh = v.videoHeight;
+      // lượt chẵn: cắt vùng giữa 70% (vùng khung hướng dẫn) ở độ nét cao; lượt lẻ: cả khung hình (mã nằm lệch)
+      const crop = st.tick % 2 === 0, side = Math.min(vw, vh) * 0.7;
+      const sx = crop ? (vw - side) / 2 : 0, sy = crop ? (vh - side) / 2 : 0, sw = crop ? side : vw, sh = crop ? side : vh;
+      const k = Math.min(1, (crop ? 1000 : 1280) / sw), w = Math.round(sw * k), hh = Math.round(sh * k);
       st.cv.width = w; st.cv.height = hh;
       const cx = st.cv.getContext('2d', { willReadFrequently: true });
-      cx.drawImage(v, 0, 0, w, hh);
+      cx.drawImage(v, sx, sy, sw, sh, 0, 0, w, hh);
       const d = cx.getImageData(0, 0, w, hh), r = window.jsQR(d.data, w, hh, { inversionAttempts: 'dontInvert' });
       return r && r.data ? [r.data] : [];
     }
@@ -3721,6 +3737,39 @@
         }).catch(function() {}).then(function() { st.busy = false; });
       }
       requestAnimationFrame(scanLoop_);
+    }
+
+    // Đọc QR từ ảnh chụp tem (dự phòng khi camera trực tiếp không dùng được). Thử cả ảnh, vùng giữa và 4 góc ở nhiều độ phóng.
+    async function scanFromPhoto_(input) {
+      const st = scanSt_, f = input.files && input.files[0];
+      if (!st || !f) return;
+      const msg = document.getElementById('scanMsg');
+      if (msg) msg.textContent = 'Đang đọc ảnh...';
+      try {
+        await ensureJsQR_();
+        const url = URL.createObjectURL(f);
+        const img = await new Promise(function(res, rej) { const im = new Image(); im.onload = function() { res(im); }; im.onerror = function() { rej(new Error('Không mở được ảnh')); }; im.src = url; });
+        const W0 = img.naturalWidth, H0 = img.naturalHeight, cv = document.createElement('canvas');
+        const tries = [[0, 0, 1, 1], [0.15, 0.15, 0.7, 0.7], [0.5, 0, 0.5, 0.5], [0, 0, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5], [0, 0.5, 0.5, 0.5], [0.25, 0, 0.75, 0.6]];
+        let text = '';
+        for (let i = 0; i < tries.length && !text; i++) {
+          const t = tries[i], sx = W0 * t[0], sy = H0 * t[1], sw = W0 * t[2], sh = H0 * t[3], k = Math.min(1.5, 1400 / sw);
+          cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+          const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+          const d = cx.getImageData(0, 0, cv.width, cv.height), r = window.jsQR(d.data, cv.width, cv.height, { inversionAttempts: 'attemptBoth' });
+          if (r && r.data) text = r.data;
+        }
+        try { URL.revokeObjectURL(url); } catch (e) {}
+        if (!text) { if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">Không đọc được mã QR — chụp gần hơn, đủ sáng, thẳng tem</span>'; return; }
+        delete st.seen[normLink_(text) || String(text)];        // mỗi tấm ảnh = 1 lần quét mới
+        const r = scanHit_(st, text, Date.now());
+        scanBeep_(r && r.type === 'ok' ? 'ok' : 'unknown'); renderScanList_();
+        const p = r && r.type === 'ok' ? scanProd_(r.sap) : null;
+        if (msg) msg.innerHTML = p ? '<span class="bg-green-700 px-3 py-2 rounded-lg inline-block">Đã đọc: ' + escHtml_(p.tenApp) + '</span>' : '<span class="bg-amber-600 px-3 py-2 rounded-lg inline-block">Tem lạ — đã ghi nhận để bổ sung sau</span>';
+      } catch (e) {
+        if (msg) msg.innerHTML = '<span class="bg-red-600 px-3 py-2 rounded-lg inline-block">' + escHtml_((e && e.message) || 'Lỗi đọc ảnh') + '</span>';
+      }
+      input.value = '';
     }
 
     function scanTorch_() {
