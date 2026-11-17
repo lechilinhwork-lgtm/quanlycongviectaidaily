@@ -173,23 +173,11 @@
         <button onclick="switchTab('agencyView')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-agencyView">
           <i class="fas fa-store"></i> Theo Đại Lý
         </button>
-        <button onclick="switchTab('search')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-search">
-          <i class="fas fa-search"></i> Tra cứu & Cập nhật
-        </button>
-        <button onclick="switchTab('temCanThay')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-temCanThay">
-          <i class="fas fa-tag"></i> Tem cần thay
+        <button onclick="switchTab('tracuu')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-tracuu">
+          <i class="fas fa-search"></i> Tra cứu
         </button>
         <button onclick="switchTab('donhoi')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-donhoi">
           <i class="fas fa-comment-dots"></i> Đơn hỏi
-        </button>
-        <button onclick="switchTab('alerts')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-alerts">
-          <i class="fas fa-exclamation-triangle"></i> Cảnh báo
-        </button>
-        <button onclick="switchTab('inventory')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-inventory">
-          <i class="fas fa-list"></i> Mẫu Trưng Bày Chi tiết
-        </button>
-        <button onclick="switchTab('filter')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-filter">
-          <i class="fas fa-filter"></i> Lọc & Tìm kiếm
         </button>
         <button onclick="switchTab('caidat')" class="tab-button tab-inactive py-3 md:py-4 px-2 md:px-2 font-semibold whitespace-nowrap text-xs md:text-base flex-shrink-0" id="tab-caidat">
           <i class="fas fa-cog"></i> Cài đặt
@@ -207,37 +195,17 @@
         <button onclick="switchTab('agencyView')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-blue-500 active:bg-gray-50">
           <i class="fas fa-store text-blue-600 text-2xl"></i>
           <span class="font-semibold text-sm text-center">Theo Đại Lý</span>
-          <span class="text-xs text-gray-500 text-center">Checklist, cập nhật tại chỗ</span>
+          <span class="text-xs text-gray-500 text-center">Quét tem, cập nhật, việc cần làm</span>
         </button>
-        <button onclick="switchTab('search')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-green-500 active:bg-gray-50">
+        <button onclick="switchTab('tracuu')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-green-500 active:bg-gray-50">
           <i class="fas fa-search text-green-600 text-2xl"></i>
-          <span class="font-semibold text-sm text-center">Tra cứu & Cập nhật</span>
-          <span class="text-xs text-gray-500 text-center">Sửa số lượng hàng loạt</span>
+          <span class="font-semibold text-sm text-center">Tra cứu</span>
+          <span class="text-xs text-gray-500 text-center">Mã ở đại lý nào, lọc, sửa số</span>
         </button>
         <button onclick="switchTab('donhoi')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-purple-500 active:bg-gray-50">
           <i class="fas fa-comment-dots text-purple-600 text-2xl"></i>
           <span class="font-semibold text-sm text-center">Đơn hỏi</span>
           <span class="text-xs text-gray-500 text-center">Khách đang chờ xử lý</span>
-        </button>
-        <button onclick="switchTab('alerts')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-red-500 active:bg-gray-50">
-          <i class="fas fa-exclamation-triangle text-red-600 text-2xl"></i>
-          <span class="font-semibold text-sm text-center">Cảnh báo</span>
-          <span class="text-xs text-gray-500 text-center">Mẫu cần gỡ ngay</span>
-        </button>
-        <button onclick="switchTab('temCanThay')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-orange-500 active:bg-gray-50">
-          <i class="fas fa-tag text-orange-600 text-2xl"></i>
-          <span class="font-semibold text-sm text-center">Tem cần thay</span>
-          <span class="text-xs text-gray-500 text-center">Ghi nhận tem hỏng</span>
-        </button>
-        <button onclick="switchTab('inventory')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-gray-400 active:bg-gray-50">
-          <i class="fas fa-list text-gray-600 text-2xl"></i>
-          <span class="font-semibold text-sm text-center">Mẫu Trưng Bày Chi tiết</span>
-          <span class="text-xs text-gray-500 text-center">Tra theo mã, xem đại lý nào có</span>
-        </button>
-        <button onclick="switchTab('filter')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-indigo-500 active:bg-gray-50">
-          <i class="fas fa-filter text-indigo-600 text-2xl"></i>
-          <span class="font-semibold text-sm text-center">Lọc & Tìm kiếm</span>
-          <span class="text-xs text-gray-500 text-center">Lọc trạng thái, mã Sale</span>
         </button>
         <button onclick="switchTab('caidat')" class="bg-white rounded-lg shadow p-4 flex flex-col items-center gap-2 border-l-4 border-teal-500 active:bg-gray-50">
           <i class="fas fa-cog text-teal-600 text-2xl"></i>
@@ -331,12 +299,21 @@
       <div class="bg-white rounded-lg shadow p-4 md:p-6">
         <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
           <i class="fas fa-exclamation-circle text-red-600"></i>
-          Top 5 Cảnh báo Nóng nhất
+          Cảnh báo — mẫu cần gỡ
         </h2>
         <div id="topAlerts" class="space-y-3">
           <p class="text-gray-500 text-center py-8">
             <span class="loading-spinner"></span> Đang tải dữ liệu...
           </p>
+        </div>
+        <button type="button" id="alertsAllBtn" onclick="toggleAllAlerts_()" class="mt-3 w-full border border-red-300 text-red-700 px-4 py-2 rounded-lg text-sm font-semibold active:bg-red-50">Xem tất cả cảnh báo</button>
+        <div id="alertsAllBox" class="hidden mt-3">
+          <p class="text-gray-600 mb-3 text-sm">Mẫu đang trưng bày tại đại lý nhưng sản phẩm đã Bỏ mẫu / Ngưng SX / Sắp ngưng (MV) — 🏢 CTY yêu cầu gỡ luôn xếp lên đầu.</p>
+          <label class="flex items-center gap-2 mb-1 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" id="alertsThuHoiOnly" onchange="loadAlerts()"> Chỉ xem mã bị CTY yêu cầu gỡ bỏ
+          </label>
+          <p class="text-xs text-gray-400 mb-3" id="alertsScopeInfo"></p>
+          <div id="alertsList" class="space-y-3"><p class="text-gray-500 text-center py-8"><span class="loading-spinner"></span> Đang tải cảnh báo...</p></div>
         </div>
       </div>
 
@@ -438,8 +415,50 @@
       </div>
     </div>
 
-    <!-- ===== TAB 2: TRA CỨU & CẬP NHẬT ===== -->
-    <div id="search" class="tab-content hidden">
+    <!-- ===== TAB: ĐƠN HỎI (danh sách theo khách, ghi từ tất cả đại lý) ===== -->
+    <div id="donhoi" class="tab-content hidden">
+      <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <i class="fas fa-comment-dots text-purple-600"></i> Đơn hỏi — Danh sách theo khách
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+          <input type="text" id="donhoiSearchKeyword" placeholder="Tìm theo tên khách, SĐT, đại lý, mã SAP..."
+            oninput="debounce_(renderDonHoiTab, 220)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+        </div>
+        <!-- Không có tuỳ chọn "Xem tất cả" ở tab này (khác các chỗ khác trong app) — cố ý:
+             Quản lý luôn thấy toàn bộ, Sale chỉ thấy đúng khách/đại lý mình phụ trách, không
+             được tự bật xem đơn hỏi của Sale khác. -->
+        <p class="text-xs text-gray-400 mb-4" id="donhoiScopeInfo"></p>
+
+        <div id="donhoiListResults" class="space-y-2">
+          <p class="text-gray-400 text-center py-8">Đang tải...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB TRA CỨU (gộp): mã này ở đại lý nào · xem/cập nhật theo đại lý · lọc ===== -->
+    <div id="tracuu" class="tab-content hidden">
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <button type="button" id="trmode-ma" data-m="ma" onclick="setTracuuMode_(this.dataset.m)" class="tr-btn px-2 py-3 rounded-lg text-sm font-semibold border">📍 Mã ở đại lý nào</button>
+        <button type="button" id="trmode-daily" data-m="daily" onclick="setTracuuMode_(this.dataset.m)" class="tr-btn px-2 py-3 rounded-lg text-sm font-semibold border">🏪 Theo đại lý</button>
+        <button type="button" id="trmode-loc" data-m="loc" onclick="setTracuuMode_(this.dataset.m)" class="tr-btn px-2 py-3 rounded-lg text-sm font-semibold border">🔎 Lọc</button>
+      </div>
+
+      <!-- Chế độ 1: gõ mã / tên -> mã đó đang có ở đại lý nào (tính ngay trên máy, không gọi máy chủ) -->
+      <div id="tracuu-ma" class="tracuu-panel">
+        <div class="bg-white rounded-lg shadow p-3 md:p-6">
+          <h2 class="text-lg md:text-xl font-bold mb-1 flex items-center gap-2"><i class="fas fa-map-marker-alt text-blue-600"></i> Mã này đang ở đại lý nào</h2>
+          <p class="text-gray-600 mb-3 text-sm">Gõ mã SAP hoặc tên sản phẩm để xem những đại lý đang trưng bày (kèm số mẫu). Đại lý hỏi "có mẫu này không" thì tra ở đây.</p>
+          <input type="text" id="inventoryMobileSearch" placeholder="Gõ mã SAP hoặc tên sản phẩm..." oninput="debounce_(renderInventoryMobile, 220)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <div id="inventoryMobileResults" class="mt-3 space-y-2 max-h-[34rem] overflow-y-auto">
+            <p class="text-gray-400 text-center py-8 text-sm">Gõ mã hoặc tên để xem sản phẩm đó đang có ở đại lý nào</p>
+          </div>
+        </div>
+      </div>
+
+    <!-- Chế độ 2: xem/cập nhật mẫu theo đại lý -->
+    <div id="tracuu-daily" class="tracuu-panel hidden">
       <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
         <h2 class="text-xl font-bold mb-4">
           <i class="fas fa-search"></i> Tra cứu & Cập nhật Mẫu Trưng Bày
@@ -504,161 +523,8 @@
       </div>
     </div>
 
-    <!-- ===== TAB TEM CẦN THAY (ghi nhận tem gạch hỏng/bong tróc/xuống màu cần thay tại đại lý) ===== -->
-    <div id="temCanThay" class="tab-content hidden">
-      <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4">
-          <i class="fas fa-tag"></i> Ghi nhận Tem cần thay
-        </h2>
-
-        <div class="mb-6">
-          <label class="block text-sm font-semibold text-gray-700 mb-2">Đại lý đang thao tác</label>
-          <div class="w-full md:w-1/2">
-            <input type="text" id="temAgencySearch" oninput="filterAgencySelect('temAgency', 'temAgencySearch')"
-              placeholder="Gõ để lọc nhanh..." class="w-full px-4 py-2 border rounded-t-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <select id="temAgency" class="w-full px-4 py-2 border border-t-0 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">-- Chọn đại lý --</option>
-            </select>
-          </div>
-          <p class="text-xs text-gray-500 mt-1">Chọn 1 lần — giữ nguyên khi ghi nhận nhiều mã liên tiếp, chỉ đổi khi sang đại lý khác.</p>
-          <label class="flex items-center gap-2 mt-2 text-sm text-gray-600 cursor-pointer">
-            <input type="checkbox" id="scopeToggle-tem" onchange="toggleAgencyScope(this.checked)">
-            Xem tất cả đại lý (bỏ qua, chỉ hiện đại lý tôi phụ trách)
-          </label>
-          <p class="text-xs text-gray-400 mt-1" id="scopeInfo-tem"></p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div class="md:col-span-2">
-            <label class="block text-sm font-semibold text-gray-700 mb-2">Tìm theo SAP/Tên (bắt đầu)</label>
-            <input type="text" id="temSearchKeyword" placeholder="VD: 10000249 hoặc CER 300x600"
-              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div class="flex flex-col justify-end">
-            <button onclick="temSearchProduct()" class="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 flex items-center gap-2 justify-center">
-              <i class="fas fa-search"></i> Tìm kiếm
-            </button>
-          </div>
-        </div>
-
-        <div id="temSearchResults" class="space-y-3 max-h-[24rem] overflow-y-auto">
-          <p class="text-gray-500 text-center py-8">Chọn đại lý rồi nhập từ khóa để tìm mã cần ghi tem</p>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6 border-2 border-orange-200">
-        <div class="mobile-sticky-actionbar flex justify-between items-center mb-3 flex-wrap gap-2 md:bg-transparent bg-white md:p-0 p-3 md:border-0 border-2 border-orange-200 md:rounded-none rounded-lg">
-          <h3 class="text-lg font-bold flex items-center gap-2">
-            <i class="fas fa-shopping-basket text-orange-600"></i>
-            Danh sách đã chọn <span class="text-sm font-normal text-gray-500" id="temCartCount">(0)</span>
-          </h3>
-          <button onclick="submitTemCart()" id="temSubmitBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-            <i class="fas fa-check-circle"></i> Hoàn tất — Ghi nhận tất cả
-          </button>
-        </div>
-        <div id="temCartList" class="space-y-2">
-          <p class="text-gray-400 text-center py-4">Chưa chọn sản phẩm nào — tìm và bấm "Thêm" ở trên</p>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-lg shadow p-4 md:p-6">
-        <h3 class="text-lg font-bold mb-3 flex items-center gap-2">
-          <i class="fas fa-clipboard-list text-green-600"></i>
-          Đã ghi nhận trong phiên này <span class="text-sm font-normal text-gray-500" id="temSessionCount">(0)</span>
-        </h3>
-        <div id="temSessionList" class="space-y-2">
-          <p class="text-gray-400 text-center py-4">Chưa có mục nào được ghi nhận</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== TAB: ĐƠN HỎI (danh sách theo khách, ghi từ tất cả đại lý) ===== -->
-    <div id="donhoi" class="tab-content hidden">
-      <div class="bg-white rounded-lg shadow p-4 md:p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-          <i class="fas fa-comment-dots text-purple-600"></i> Đơn hỏi — Danh sách theo khách
-        </h2>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-          <input type="text" id="donhoiSearchKeyword" placeholder="Tìm theo tên khách, SĐT, đại lý, mã SAP..."
-            oninput="debounce_(renderDonHoiTab, 220)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-        </div>
-        <!-- Không có tuỳ chọn "Xem tất cả" ở tab này (khác các chỗ khác trong app) — cố ý:
-             Quản lý luôn thấy toàn bộ, Sale chỉ thấy đúng khách/đại lý mình phụ trách, không
-             được tự bật xem đơn hỏi của Sale khác. -->
-        <p class="text-xs text-gray-400 mb-4" id="donhoiScopeInfo"></p>
-
-        <div id="donhoiListResults" class="space-y-2">
-          <p class="text-gray-400 text-center py-8">Đang tải...</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== TAB 3: CẢNH BÁO ===== -->
-    <div id="alerts" class="tab-content hidden">
-      <div class="bg-white rounded-lg shadow p-4 md:p-6">
-        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-          <i class="fas fa-exclamation-triangle text-red-600"></i>
-          Danh sách Cảnh báo Mẫu
-        </h2>
-        <p class="text-gray-600 mb-3">Mẫu đang trưng bày tại đại lý nhưng sản phẩm đã Bỏ mẫu / Ngưng SX / Sắp ngưng (MV) — 🏢 CTY yêu cầu gỡ bỏ luôn được xếp lên đầu vì cấp bách nhất.</p>
-        <label class="flex items-center gap-2 mb-1 text-sm text-gray-600 cursor-pointer">
-          <input type="checkbox" id="alertsThuHoiOnly" onchange="loadAlerts()">
-          Chỉ xem mã bị CTY yêu cầu gỡ bỏ
-        </label>
-        <p class="text-xs text-gray-400 mb-4" id="alertsScopeInfo"></p>
-
-        <div id="alertsList" class="space-y-3">
-          <p class="text-gray-500 text-center py-8">
-            <span class="loading-spinner"></span> Đang tải cảnh báo...
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== TAB 4: TỒN KHO CHI TIẾT ===== -->
-    <div id="inventory" class="tab-content hidden">
-      <div class="bg-white rounded-lg shadow p-3 md:p-6">
-        <h2 class="text-lg md:text-xl font-bold mb-2 flex items-center gap-2">
-          <i class="fas fa-table"></i>
-          Bảng Mẫu Trưng Bày Chi tiết
-        </h2>
-        <!-- Điện thoại: bảng ma trận 99 cột gần như không dùng được — thay bằng chọn 1 mã, xem
-             đại lý nào đang có mã đó dạng danh sách. Máy tính vẫn giữ nguyên bảng đầy đủ. -->
-        <div class="md:hidden mb-3">
-          <input type="text" id="inventoryMobileSearch" placeholder="Gõ mã SAP hoặc tên sản phẩm..."
-            oninput="debounce_(renderInventoryMobile, 220)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <div id="inventoryMobileResults" class="mt-3 space-y-2 max-h-[32rem] overflow-y-auto">
-            <p class="text-gray-400 text-center py-8 text-sm">Gõ mã hoặc tên để xem sản phẩm đó đang có ở đại lý nào</p>
-          </div>
-        </div>
-
-        <div class="hidden md:block overflow-x-auto">
-          <table class="w-full text-xs md:text-sm">
-            <thead class="bg-gray-100 border-b-2 border-gray-300">
-              <tr>
-                <th class="px-2 py-2 md:px-4 md:py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Mã SAP</th>
-                <th class="px-2 py-2 md:px-4 md:py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Tên Hàng</th>
-                <th class="px-2 py-2 md:px-4 md:py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Kích thước</th>
-                <th class="px-2 py-2 md:px-4 md:py-3 text-center font-semibold text-gray-700 whitespace-nowrap">Trạng thái HH</th>
-                <th class="px-2 py-2 md:px-4 md:py-3 text-center font-semibold text-gray-700 whitespace-nowrap" id="inventoryHeaderColspan">Tổng số lượng mẫu trưng bày tại các cửa hàng</th>
-              </tr>
-              <tr id="agencyHeaderRow"></tr>
-            </thead>
-            <tbody id="inventoryTableBody" class="divide-y">
-              <tr>
-                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
-                  <span class="loading-spinner"></span> Đang tải dữ liệu...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== TAB 5: LỌC & TÌM KIẾM ===== -->
-    <div id="filter" class="tab-content hidden">
+    <!-- Chế độ 3: lọc theo trạng thái / mã đang Sale -->
+    <div id="tracuu-loc" class="tracuu-panel hidden">
       <div class="bg-white rounded-lg shadow p-4 md:p-6">
         <h2 class="text-xl font-bold mb-4">
           <i class="fas fa-filter"></i> Lọc Sản phẩm theo Trạng thái
@@ -691,27 +557,8 @@
           <p class="text-gray-500 text-center py-8">Bấm nút trên để tải danh sách</p>
         </div>
       </div>
+    </div>
 
-      <div class="bg-white rounded-lg shadow p-4 md:p-6 mt-6">
-        <h2 class="text-xl font-bold mb-2 flex items-center gap-2">
-          <i class="fas fa-map-marker-alt text-blue-600"></i> Mã này đang ở đại lý nào
-        </h2>
-        <p class="text-gray-600 mb-4 text-sm">Nhập Mã SAP hoặc tên sản phẩm để xem đang trưng bày ở những đại lý nào.</p>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-          <div class="md:col-span-2">
-            <input type="text" id="sapLookupInput" placeholder="VD: 10000249 hoặc CER 300x600"
-              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div class="flex flex-col justify-end">
-            <button onclick="lookupSapAgencies()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 justify-center">
-              <i class="fas fa-search"></i> Tra cứu
-            </button>
-          </div>
-        </div>
-        <div id="sapLookupResults" class="space-y-2 max-h-96 overflow-y-auto">
-          <p class="text-gray-500 text-center py-8">Nhập mã SAP rồi bấm "Tra cứu"</p>
-        </div>
-      </div>
     </div>
 
     <!-- ===== TAB CÀI ĐẶT: THÊM ĐẠI LÝ MỚI ===== -->
@@ -850,7 +697,7 @@
       <button onclick="switchTab('agencyView')" class="bnav-btn flex flex-col items-center justify-center py-2 gap-0.5" id="bnav-agencyView">
         <i class="fas fa-store text-lg"></i><span class="text-[10px] font-medium">Đại Lý</span>
       </button>
-      <button onclick="switchTab('search')" class="bnav-btn flex flex-col items-center justify-center py-2 gap-0.5" id="bnav-search">
+      <button onclick="switchTab('tracuu')" class="bnav-btn flex flex-col items-center justify-center py-2 gap-0.5" id="bnav-tracuu">
         <i class="fas fa-search text-lg"></i><span class="text-[10px] font-medium">Tra cứu</span>
       </button>
       <button onclick="switchTab('donhoi')" class="bnav-btn flex flex-col items-center justify-center py-2 gap-0.5" id="bnav-donhoi">
@@ -1513,7 +1360,37 @@
       });
     });
 
+    // Tên tab cũ vẫn dùng được (nơi khác trong app còn gọi): chuyển sang tab mới tương ứng
+    const TAB_ALIAS_ = { search: ['tracuu', 'daily'], inventory: ['tracuu', 'ma'], filter: ['tracuu', 'loc'], temCanThay: ['agencyView', null], alerts: ['dashboard', 'alerts'] };
+    let lastTracuuMode_ = 'ma';
+
+    function setTracuuMode_(m) {
+      if (['ma', 'daily', 'loc'].indexOf(m) < 0) m = 'ma';
+      lastTracuuMode_ = m;
+      document.querySelectorAll('.tracuu-panel').forEach(el => el.classList.add('hidden'));
+      const p = document.getElementById(m === 'ma' ? 'tracuu-ma' : (m === 'daily' ? 'tracuu-daily' : 'tracuu-loc'));
+      if (p) p.classList.remove('hidden');
+      ['ma', 'daily', 'loc'].forEach(k => {
+        const b = document.getElementById('trmode-' + k); if (!b) return;
+        b.className = 'tr-btn px-2 py-3 rounded-lg text-sm font-semibold border ' + (k === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700');
+      });
+      if (m === 'ma') renderInventoryMobile();
+    }
+
+    // Dashboard: mở/đóng danh sách đầy đủ cảnh báo (trước đây là tab "Cảnh báo" riêng)
+    function toggleAllAlerts_(forceOpen) {
+      const box = document.getElementById('alertsAllBox'), btn = document.getElementById('alertsAllBtn');
+      if (!box) return;
+      const open = forceOpen === true ? true : box.classList.contains('hidden');
+      box.classList.toggle('hidden', !open);
+      if (btn) btn.textContent = open ? 'Thu gọn' : 'Xem tất cả cảnh báo';
+      if (open) loadAlerts();
+    }
+
     function switchTab(tabName) {
+      let mode = null;
+      const al = TAB_ALIAS_[tabName];
+      if (al) { tabName = al[0]; mode = al[1]; }
       document.querySelectorAll('.tab-content').forEach(el => {
         el.classList.add('hidden');
       });
@@ -1527,21 +1404,17 @@
       document.getElementById('tab-' + tabName).classList.remove('tab-inactive');
       document.getElementById('tab-' + tabName).classList.add('tab-active');
 
-      // Đồng bộ thanh điều hướng dưới cùng (điện thoại) — chỉ 4 mục chính có nút riêng ở đây;
-      // 4 tab còn lại (Tem cần thay/Cảnh báo/Mẫu TB Chi tiết/Lọc & Tìm kiếm) vào qua Dashboard
-      // nên không có nút tương ứng ở thanh này — không nút nào sáng là đúng khi đang ở 1 trong
-      // 4 tab đó (Dashboard chính là nơi dẫn tới chúng).
+      // Đồng bộ thanh điều hướng dưới cùng (điện thoại): 4 mục chính Dashboard / Đại Lý / Tra cứu / Đơn hỏi.
       document.querySelectorAll('.bnav-btn').forEach(el => el.classList.remove('bnav-active'));
       const bnavEl = document.getElementById('bnav-' + tabName);
       if (bnavEl) bnavEl.classList.add('bnav-active');
 
       currentTab = tabName;
 
-      if (tabName === 'inventory') {
-        renderInventoryTable();
-        renderInventoryMobile();
-      } else if (tabName === 'alerts') {
-        loadAlerts();
+      if (tabName === 'tracuu') {
+        setTracuuMode_(mode || lastTracuuMode_);
+      } else if (tabName === 'dashboard' && mode === 'alerts') {
+        toggleAllAlerts_(true);
       } else if (tabName === 'donhoi') {
         renderDonHoiTab();
       } else if (tabName === 'caidat') {
@@ -2556,257 +2429,8 @@
       document.getElementById('saleAgencyResults').innerHTML = html;
     }
 
-    function lookupSapAgencies() {
-      const keyword = document.getElementById('sapLookupInput').value.trim();
-      if (!keyword) {
-        alert('Vui lòng nhập mã SAP hoặc tên sản phẩm');
-        return;
-      }
-      document.getElementById('sapLookupResults').innerHTML = '<p class="text-gray-500 text-center py-8"><span class="loading-spinner"></span> Đang tra cứu...</p>';
-      callServer('findAgenciesForKeyword', [keyword], function(result) {
-        if (!result.success) {
-          document.getElementById('sapLookupResults').innerHTML = `<p class="text-red-500 text-center py-8">${result.message}</p>`;
-          return;
-        }
-        renderSapLookupResults(result.data);
-      });
-    }
-
-    function renderSapLookupResults(results) {
-      let html = '';
-      results.forEach(result => {
-        const p = result.product;
-        const statusClass = 'status-' + p.trangThaiHH.toLowerCase();
-        const saleBadge = result.dangSale
-          ? `<span class="bg-red-600 text-white text-xs px-2 py-0.5 rounded font-semibold">🔥 SALE${result.chuongTrinh ? ' - ' + result.chuongTrinh : ''}</span>`
-          : '';
-        const agencyHtml = result.agencies.length > 0
-          ? result.agencies.map(a => `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">${a.tenDaiLy}: ${a.qty}</span>`).join('')
-          : '<p class="text-gray-400 text-sm">Hiện không có đại lý nào đang trưng bày mã này</p>';
-
-        html += `
-          <div class="p-4 border rounded-lg bg-blue-50 border-blue-200">
-            <div class="flex items-center gap-2 flex-wrap mb-2">
-              <p class="font-bold text-lg">${p.tenApp || p.tenHang}</p>
-              <span class="${statusClass} px-2 py-0.5 rounded text-xs font-semibold">${p.trangThaiHH}</span>
-              ${saleBadge}
-            </div>
-            <p class="text-sm text-gray-600 mb-3">SAP: ${p.sapCode} | ${p.kichThuoc}</p>
-            <p class="text-sm font-semibold text-gray-700 mb-2">Đang có mặt tại ${result.totalAgencies} đại lý:</p>
-            <div>${agencyHtml}</div>
-          </div>
-        `;
-      });
-      document.getElementById('sapLookupResults').innerHTML = html;
-    }
-
-    // ===== TEM CẦN THAY: chọn đại lý, tìm & thêm nhiều sản phẩm vào giỏ, rồi gửi 1 lần =====
+    // Tình trạng tem — dùng cho form "Thêm nhanh" trong Theo Đại Lý (tab Tem cần thay riêng đã gộp vào đó)
     const TEM_CONDITIONS = ['Chưa có tem', 'Hỏng', 'Bong tróc', 'Xuống màu', 'Khác'];
-    let temCart = {}; // key = sapCode, value = { sapCode, tenApp, kichThuoc, tinhTrangTem, soLuong }
-    let temSessionRecords = [];
-
-    function temSearchProduct() {
-      const agencyName = document.getElementById('temAgency').value;
-      if (!agencyName) {
-        alert('Vui lòng chọn đại lý trước');
-        return;
-      }
-      const keyword = document.getElementById('temSearchKeyword').value.trim();
-      if (!keyword) {
-        alert('Vui lòng nhập từ khóa tìm kiếm');
-        return;
-      }
-      callServer('temSearchProductsWithStock', [keyword], function(result) {
-        if (result.success) {
-          renderTemSearchResults(result.data);
-        } else {
-          alert('Lỗi: ' + result.message);
-        }
-      });
-    }
-
-    function renderTemSearchResults(products) {
-      let html = '';
-      if (products.length === 0) {
-        html = '<p class="text-gray-500 text-center py-8">Không tìm thấy sản phẩm nào phù hợp</p>';
-      } else {
-        const conditionOptions = TEM_CONDITIONS.map(c => `<option value="${c}">${c}</option>`).join('');
-        products.forEach(product => {
-          const statusClass = 'status-' + product.trangThaiHH.toLowerCase();
-          const inCart = temCart[product.sapCode];
-          const congTy = product.tonKhoCongTy || 0;
-          const khoHtml = (product.khoConHang && product.khoConHang.length > 0)
-            ? product.khoConHang.map(k => `<span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded mr-1">${k.ten}: ${k.qty}</span>`).join('')
-            : '';
-          html += `
-            <div class="p-3 border rounded-lg bg-gray-50">
-              <div class="flex items-start gap-3 mb-2">
-                ${productImageThumb(product.sapCode, product.tenApp, product.kichThuoc, document.getElementById('temAgency').value)}
-                <div class="flex-1">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <p class="font-bold">${product.tenApp}</p>
-                    <span class="${statusClass} px-2 py-0.5 rounded text-xs font-semibold">${product.trangThaiHH}</span>
-                    ${inCart ? '<span class="text-xs text-green-700 font-semibold">✓ Đã có trong danh sách</span>' : ''}
-                  </div>
-                  <p class="text-sm text-gray-600 mb-1">SAP: ${product.sapCode} | ${product.kichThuoc}</p>
-                  <p class="text-xs mt-1 ${congTy > 0 ? 'text-green-700' : 'text-gray-400'}">🏭 Tồn kho công ty: <strong>${congTy}</strong></p>
-                  ${khoHtml ? `<div class="mt-1">${khoHtml}</div>` : ''}
-                </div>
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end mt-2">
-                <div class="md:col-span-2">
-                  <label class="block text-xs text-gray-500 mb-1">Tình trạng tem (không bắt buộc)</label>
-                  <select id="temCond-${product.sapCode}" class="w-full px-2 py-1.5 border rounded text-sm">
-                    <option value="">-- Không chọn --</option>
-                    ${conditionOptions}
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs text-gray-500 mb-1">Số lượng cần thay</label>
-                  <input type="number" min="1" id="temQty-${product.sapCode}" placeholder="VD: 2"
-                    value="${inCart ? inCart.soLuong : 1}" class="w-full px-2 py-1.5 border rounded text-sm">
-                </div>
-                <button onclick="addToTemCart('${product.sapCode}', '${product.tenApp.replace(/'/g, "\\'")}', '${product.kichThuoc.replace(/'/g, "\\'")}', '${product.tenHang.replace(/'/g, "\\'")}', '${product.trangThaiHH}')"
-                  class="bg-orange-600 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-700">
-                  <i class="fas fa-plus"></i> Thêm
-                </button>
-              </div>
-            </div>
-          `;
-        });
-      }
-      document.getElementById('temSearchResults').innerHTML = html;
-
-      // Khôi phục tình trạng tem đã chọn trước đó (nếu SAP đã có trong giỏ)
-      products.forEach(product => {
-        const inCart = temCart[product.sapCode];
-        if (inCart && inCart.tinhTrangTem) {
-          const sel = document.getElementById('temCond-' + product.sapCode);
-          if (sel) sel.value = inCart.tinhTrangTem;
-        }
-      });
-    }
-
-    function addToTemCart(sapCode, tenApp, kichThuoc, tenHang, trangThaiHH) {
-      const qtyInput = document.getElementById('temQty-' + sapCode);
-      const qty = parseInt(qtyInput.value);
-      if (isNaN(qty) || qty <= 0) {
-        alert('Vui lòng nhập số lượng hợp lệ');
-        return;
-      }
-      const condition = document.getElementById('temCond-' + sapCode).value;
-
-      temCart[sapCode] = { sapCode, tenApp, kichThuoc, tenHang, trangThaiHH, tinhTrangTem: condition, soLuong: qty };
-      renderTemCart();
-
-      // Đánh dấu ngay trên kết quả tìm kiếm là đã thêm, không cần tìm lại
-      const card = qtyInput.closest('.border');
-      if (card) {
-        const marker = card.querySelector('.text-green-700');
-        if (!marker) {
-          const badge = document.createElement('span');
-          badge.className = 'text-xs text-green-700 font-semibold';
-          badge.textContent = '✓ Đã có trong danh sách';
-          card.querySelector('.flex.items-center.gap-2.flex-wrap').appendChild(badge);
-        }
-      }
-    }
-
-    function removeFromTemCart(sapCode) {
-      delete temCart[sapCode];
-      renderTemCart();
-    }
-
-    function renderTemCart() {
-      const items = Object.values(temCart);
-      document.getElementById('temCartCount').textContent = '(' + items.length + ')';
-      document.getElementById('temSubmitBtn').disabled = items.length === 0;
-
-      if (items.length === 0) {
-        document.getElementById('temCartList').innerHTML = '<p class="text-gray-400 text-center py-4">Chưa chọn sản phẩm nào — tìm và bấm "Thêm" ở trên</p>';
-        return;
-      }
-
-      let html = '';
-      items.forEach(item => {
-        html += `
-          <div class="flex justify-between items-center p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
-            <div>
-              <p class="font-semibold">${item.tenApp} <span class="text-gray-500 font-normal">(SAP: ${item.sapCode})</span></p>
-              <p class="text-xs text-gray-600">${item.kichThuoc}${item.tinhTrangTem ? ' • ' + item.tinhTrangTem : ''}</p>
-            </div>
-            <div class="flex items-center gap-3">
-              <p class="font-bold text-orange-700">${item.soLuong} tem</p>
-              <button onclick="removeFromTemCart('${item.sapCode}')" class="text-red-500 hover:text-red-700">
-                <i class="fas fa-times-circle"></i>
-              </button>
-            </div>
-          </div>
-        `;
-      });
-      document.getElementById('temCartList').innerHTML = html;
-    }
-
-    function submitTemCart() {
-      const agencyName = document.getElementById('temAgency').value;
-      if (!agencyName) {
-        alert('Vui lòng chọn đại lý trước');
-        return;
-      }
-      const items = Object.values(temCart);
-      if (items.length === 0) {
-        alert('Danh sách đang trống');
-        return;
-      }
-
-      const btn = document.getElementById('temSubmitBtn');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="loading-spinner"></span> Đang ghi nhận...';
-
-      callServer('submitTemRequestBatch', [agencyName, items], function(result) {
-        btn.innerHTML = '<i class="fas fa-check-circle"></i> Hoàn tất — Ghi nhận tất cả';
-        if (result.success) {
-          const now = new Date();
-          items.forEach(item => {
-            temSessionRecords.unshift({ agencyName, ...item, time: now });
-          });
-          renderTemSessionList();
-          temCart = {};
-          renderTemCart();
-          document.getElementById('temSearchResults').innerHTML = '<p class="text-gray-500 text-center py-8">Chọn đại lý rồi nhập từ khóa để tìm mã cần ghi tem</p>';
-          document.getElementById('temSearchKeyword').value = '';
-          alert('Đã ghi nhận ' + result.count + ' mã tem cần thay tại ' + agencyName);
-        } else {
-          btn.disabled = false;
-          alert('Lỗi: ' + result.message);
-        }
-      });
-    }
-
-    function renderTemSessionList() {
-      document.getElementById('temSessionCount').textContent = '(' + temSessionRecords.length + ')';
-      if (temSessionRecords.length === 0) {
-        document.getElementById('temSessionList').innerHTML = '<p class="text-gray-400 text-center py-4">Chưa có mục nào được ghi nhận</p>';
-        return;
-      }
-      let html = '';
-      temSessionRecords.forEach(r => {
-        const timeStr = r.time.toLocaleTimeString('vi-VN');
-        html += `
-          <div class="flex justify-between items-center p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
-            <div>
-              <p class="font-semibold">${r.tenApp} <span class="text-gray-500 font-normal">(SAP: ${r.sapCode})</span></p>
-              <p class="text-xs text-gray-600">${r.agencyName}${r.tinhTrangTem ? ' • ' + r.tinhTrangTem : ''}</p>
-            </div>
-            <div class="text-right">
-              <p class="font-bold text-green-700">${r.soLuong} tem</p>
-              <p class="text-xs text-gray-400">${timeStr}</p>
-            </div>
-          </div>
-        `;
-      });
-      document.getElementById('temSessionList').innerHTML = html;
-    }
 
     // Chế độ xem thay thế cho điện thoại — gõ mã/tên, xem sản phẩm đó đang có ở đại lý nào
     // (chỉ liệt kê đại lý có số lượng > 0), thay cho cuộn ngang 99 cột trên bảng ma trận.
@@ -2851,57 +2475,6 @@
           </div>
         `;
       }).join('');
-    }
-
-    function renderInventoryTable() {
-      if (!allAgencies.length) {
-        loadAllData();
-        return;
-      }
-
-      let headerHtml = '<th colspan="5"></th>';
-      allAgencies.forEach(agency => {
-        headerHtml += `<th class="px-2 py-2 md:px-4 md:py-3 text-center font-semibold text-gray-700 whitespace-nowrap">${agency.tenDaiLy}</th>`;
-      });
-      document.getElementById('agencyHeaderRow').innerHTML = headerHtml;
-
-      let bodyHtml = '';
-      allProducts.forEach(product => {
-        const statusClass = 'status-' + product.trangThaiHH.toLowerCase();
-        let totalQty = 0;
-        allAgencies.forEach(agency => {
-          totalQty += (allStock[product.sapCode] && allStock[product.sapCode][agency.tenDaiLy])
-            ? allStock[product.sapCode][agency.tenDaiLy]
-            : 0;
-        });
-
-        bodyHtml += `
-          <tr>
-            <td class="px-2 py-2 md:px-4 md:py-3 font-semibold whitespace-nowrap">${product.sapCode}</td>
-            <td class="px-2 py-2 md:px-4 md:py-3 whitespace-nowrap">${product.tenApp}</td>
-            <td class="px-2 py-2 md:px-4 md:py-3 text-gray-600 whitespace-nowrap">${product.kichThuoc}</td>
-            <td class="px-2 py-2 md:px-4 md:py-3 text-center">
-              <span class="${statusClass} px-2 py-1 rounded text-xs font-semibold">
-                ${product.trangThaiHH}
-              </span>
-            </td>
-            <td class="px-2 py-2 md:px-4 md:py-3 text-center font-semibold">${totalQty}</td>
-        `;
-
-        allAgencies.forEach(agency => {
-          const qty = allStock[product.sapCode] && allStock[product.sapCode][agency.tenDaiLy]
-            ? allStock[product.sapCode][agency.tenDaiLy]
-            : 0;
-          const isLow = qty < product.dinhBien;
-          const cellClass = qty === 0 ? 'bg-red-50' : (isLow ? 'bg-yellow-50' : '');
-
-          bodyHtml += `<td class="px-2 py-2 md:px-4 md:py-3 text-center ${cellClass} font-semibold">${qty}</td>`;
-        });
-
-        bodyHtml += '</tr>';
-      });
-
-      document.getElementById('inventoryTableBody').innerHTML = bodyHtml;
     }
 
     // ===== Lọc đại lý theo Sale phụ trách (cột "Quản lý" trong Agencies, đối chiếu Họ tên
@@ -2950,7 +2523,7 @@
     // Gọi từ checkbox "Xem tất cả đại lý" — đồng bộ cả 3 chỗ vì cùng 1 trạng thái.
     function toggleAgencyScope(checked) {
       showAllAgencies = checked;
-      ['scopeToggle-view', 'scopeToggle-update', 'scopeToggle-tem'].forEach(id => {
+      ['scopeToggle-view', 'scopeToggle-update'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.checked = checked;
       });
@@ -2965,7 +2538,7 @@
       const text = myAgencies.length === 0
         ? `⚠️ Không tìm thấy đại lý nào có "Quản lý" = "${currentUserHoTen}" — kiểm tra lại cột Quản lý trong sheet Agencies có khớp đúng Họ tên này không. Đang hiện tạm toàn bộ ${allAgencies.length} đại lý.`
         : `Đang hiện ${showAllAgencies ? allAgencies.length + ' đại lý (tất cả)' : myAgencies.length + ' đại lý của ' + currentUserHoTen}`;
-      ['scopeInfo-view', 'scopeInfo-update', 'scopeInfo-tem'].forEach(id => {
+      ['scopeInfo-view', 'scopeInfo-update'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         el.textContent = text;
@@ -2978,18 +2551,13 @@
     function populateAgencySelect() {
       const options = buildAgencyOptionsHtml(scopedAgencyList(), '');
       const updateSel = document.getElementById('updateAgency');
-      const temSel = document.getElementById('temAgency');
       // Giữ lại đại lý đang chọn (nếu có) — tránh mất lựa chọn khi có lệnh tải dữ liệu
       // nào đó về muộn và gọi lại hàm này trong lúc Sale đang thao tác (readProducts/
       // readAgencies/getCurrentUser chạy song song, không đảm bảo thứ tự về).
       const prevUpdate = updateSel.value;
-      const prevTem = temSel.value;
       updateSel.innerHTML = options;
-      temSel.innerHTML = options;
       if (prevUpdate) updateSel.value = prevUpdate;
-      if (prevTem) temSel.value = prevTem;
       document.getElementById('updateAgencySearch').value = '';
-      document.getElementById('temAgencySearch').value = '';
       updateScopeInfoText();
     }
 
