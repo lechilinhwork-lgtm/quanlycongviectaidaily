@@ -509,8 +509,9 @@
 
     <!-- ===== TAB TRA CỨU (gộp): mã này ở đại lý nào · xem/cập nhật theo đại lý · lọc ===== -->
     <div id="tracuu" class="tab-content hidden">
-      <div class="grid grid-cols-2 gap-2 mb-4">
+      <div class="grid grid-cols-3 gap-2 mb-4">
         <button type="button" id="trmode-ma" data-m="ma" onclick="setTracuuMode_(this.dataset.m)" class="tr-btn px-2 py-3 rounded-lg text-sm font-semibold border">📍 Mã ở đại lý nào</button>
+        <button type="button" id="trmode-keo" data-m="keo" onclick="setTracuuMode_(this.dataset.m)" class="tr-btn px-2 py-3 rounded-lg text-sm font-semibold border">🧴 Keo dán</button>
         <button type="button" id="trmode-loc" data-m="loc" onclick="setTracuuMode_(this.dataset.m)" class="tr-btn px-2 py-3 rounded-lg text-sm font-semibold border">🔎 Lọc</button>
       </div>
 
@@ -525,6 +526,9 @@
           </div>
         </div>
       </div>
+
+    <!-- Chế độ keo dán gạch & bột chà ron -->
+    <div id="tracuu-keo" class="tracuu-panel hidden"><div id="keoBox" class="space-y-3"></div></div>
 
     <!-- Chế độ 3: lọc theo trạng thái / mã đang Sale -->
     <div id="tracuu-loc" class="tracuu-panel hidden">
@@ -721,6 +725,7 @@
     // lỗi), KHÔNG gọi lại server nữa. Xem ghi chú ở Code.gs, hàm readBangGia/readTonKhoCongTy/
     // readThuHoiMau/readAllTemCanThay/readAllDonHoi.
     let allBangGia = {};
+    let allKeoGia = {};   // giá keo dán gạch / bột chà ron theo Mã SAP (đ/bao)
     let allTonKhoCty = {};
     let allThuHoiSet = new Set();
     let allTemInfo = {};    // { 'Mã SAP': { code, face, size, price, link } } — đúng cột của file in tem giá
@@ -1369,16 +1374,86 @@
 
     function setTracuuMode_(m) {
       if (m === 'daily') { switchTab('search'); return; }   // "Theo đại lý" đã gộp vào tab Đại Lý
-      if (['ma', 'loc'].indexOf(m) < 0) m = 'ma';
+      if (['ma', 'loc', 'keo'].indexOf(m) < 0) m = 'ma';
       lastTracuuMode_ = m;
       document.querySelectorAll('.tracuu-panel').forEach(el => el.classList.add('hidden'));
-      const p = document.getElementById(m === 'ma' ? 'tracuu-ma' : 'tracuu-loc');
+      const p = document.getElementById('tracuu-' + m);
       if (p) p.classList.remove('hidden');
-      ['ma', 'loc'].forEach(k => {
+      ['ma', 'keo', 'loc'].forEach(k => {
         const b = document.getElementById('trmode-' + k); if (!b) return;
         b.className = 'tr-btn px-2 py-3 rounded-lg text-sm font-semibold border ' + (k === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700');
       });
       if (m === 'ma') renderInventoryMobile();
+      if (m === 'keo') renderKeoTab_();
+    }
+
+
+    // ===== KEO DÁN GẠCH GECKO & BỘT CHÀ RON GROUTEX =====
+    // Thông tin kỹ thuật: tài liệu đào tạo KTSP Keo dán gạch Gecko (29/05/2026) + brochure. GIÁ lấy trực tiếp từ tab "Bảng giá Keo"
+    // (allKeoGia); số dưới đây (gia) chỉ là bản dự phòng khi chưa tải được giá. Đơn vị: đồng/bao.
+    const KEO_INFO_ = [
+      { sap: '10006209', ten: 'GECKO WALL', mota: 'Keo ốp tường', slogan: 'Ốp tường cao – tránh rơi gạch', quyCach: '25kg/bao', ma: 'GEW0000T', hang: 'keo',
+        ungDung: ['Dán tường ở độ cao không quá 5m', 'Gạch kích thước tới 80x80 cm', 'Thích hợp thi công gạch chồng gạch'],
+        gia: [278640, 209000, 217300, 200600, 209000] },
+      { sap: '10006208', ten: 'GECKO FLOOR', mota: 'Keo dán gạch lát sàn', slogan: 'Giải pháp tiết kiệm thay hồ dầu', quyCach: '25kg/bao', ma: 'GEF0000T', hang: 'keo',
+        ungDung: ['Lát nền (thay vữa xi măng/hồ dầu)', 'Ốp tường nội thất tối đa 2m: gạch Porcelain 30x60, Ceramic 60x60'],
+        gia: [234360, 175800, 182800, 168700, 175800] },
+      { sap: '10006196', ten: 'GECKO PRO', mota: 'Keo dán gạch kích thước lớn', slogan: 'Công trình lớn, ưu tiên an toàn', quyCach: '25kg/bao', ma: 'GEP0000T', hang: 'keo',
+        ungDung: ['Khu vực chịu áp lực nước hoặc rung động thường xuyên', 'Gạch cỡ lớn, độ cao không quá 8m, kích thước tới 120x120 cm', 'Thích hợp thi công gạch chồng gạch'],
+        gia: [945000, 708800, 737100, 680400, 708800] },
+      { sap: '10006195', ten: 'GECKO SUPER', mota: 'Keo dán gạch hồ bơi', slogan: 'Gạch lớn, khu ẩm ướt – bắt buộc dùng', quyCach: '25kg/bao', ma: 'GES0000T', hang: 'keo',
+        ungDung: ['Khu vực hồ bơi, spa, ẩm ướt, áp lực nước', 'Gạch lớn hơn 80x80 cm (tới 60x120 cm), độ cao không quá 5m', 'Thích hợp thi công gạch chồng gạch'],
+        gia: [567000, 425300, 442300, 408200, 425300] },
+      { sap: '10002953', ten: 'GROUTEX mã 01 – 1kg', mota: 'Bột chà ron', slogan: 'Bộ sưu tập 15 màu ron', quyCach: '1kg/bao', ma: 'GRO0001A', hang: 'ron',
+        ungDung: ['Chà ron hài hòa nét ron: chống nứt, chống mài mòn, chống nấm mốc, chống bám bẩn', 'An toàn sức khỏe – ISO 13007-3:2010 / TCVN 7899-3:2008'],
+        gia: [30900, 23200, 24100, 22200, 23200] },
+      { sap: '10002955', ten: 'GROUTEX mã 01 – 5kg', mota: 'Bột chà ron', slogan: 'Bộ sưu tập 15 màu ron', quyCach: '5kg/bao', ma: 'GRO0001H', hang: 'ron',
+        ungDung: ['Chà ron hài hòa nét ron: chống nứt, chống mài mòn, chống nấm mốc, chống bám bẩn', 'An toàn sức khỏe – ISO 13007-3:2010 / TCVN 7899-3:2008'],
+        gia: [133400, 100100, 104100, 96000, 100100] }
+    ];
+    function keoGiaOf_(k) {
+      const g = allKeoGia[k.sap];
+      if (g && (g.giaLe || g.nkDuoi)) return [g.giaLe, g.nkDuoi, g.dgDuoi, g.nkTu, g.dgTu];
+      return k.gia;
+    }
+    function keoMsg_(k) {
+      const g = keoGiaOf_(k);
+      return k.ten + ' (' + k.mota + ') – ' + k.quyCach + '\n' + k.slogan + '\n• ' + k.ungDung.join('\n• ') + (g[0] ? '\nGiá niêm yết: ' + formatVND(g[0]) + '/bao' : '');
+    }
+    function copyKeo_(sap) { const k = KEO_INFO_.find(x => x.sap === sap); if (k) copyText_(keoMsg_(k), 'Đã copy thông tin ' + k.ten); }
+    function renderKeoTab_() {
+      const box = document.getElementById('keoBox'); if (!box) return;
+      const row = (lb, v, hot) => '<div class="flex justify-between text-xs py-0.5"><span class="text-gray-500">' + lb + '</span><b class="' + (hot ? 'text-red-600' : 'text-gray-800') + '">' + (v ? formatVND(v) : '–') + '</b></div>';
+      const card = k => {
+        const g = keoGiaOf_(k), mg = g[0] ? Math.round((1 - g[1] / g[0]) * 100) : 0;
+        const nhom = k.hang === 'keo' ? 'border-amber-500' : 'border-teal-500';
+        return '<div class="bg-white rounded-lg shadow border-l-4 ' + nhom + ' p-3">' +
+          '<div class="flex justify-between items-start gap-2"><div><p class="font-bold">' + escHtml_(k.ten) + '</p><p class="text-xs text-gray-500">' + escHtml_(k.mota) + ' · ' + escHtml_(k.quyCach) + ' · SAP ' + k.sap + '</p></div>' +
+          '<button type="button" onclick="copyKeo_(\'' + k.sap + '\')" class="text-xs bg-blue-600 text-white px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"><i class="fas fa-copy"></i> Copy</button></div>' +
+          '<p class="text-sm font-semibold text-amber-700 mt-1">“' + escHtml_(k.slogan) + '”</p>' +
+          '<ul class="text-sm text-gray-700 mt-1 list-disc pl-5">' + k.ungDung.map(u => '<li>' + escHtml_(u) + '</li>').join('') + '</ul>' +
+          '<div class="mt-2 pt-2 border-t grid grid-cols-1 sm:grid-cols-2 gap-x-6">' +
+          '<div>' + row('Giá lẻ', g[0]) + '</div><div>' + row('Đại lý nhận kho < 50 bao', g[1], true) + row('Đại lý đi giao < 50 bao', g[2]) + '</div>' +
+          '<div></div><div>' + row('Đại lý nhận kho ≥ 50 bao', g[3], true) + row('Đại lý đi giao ≥ 50 bao', g[4]) + '</div></div>' +
+          (mg ? '<p class="text-[11px] text-gray-400 mt-1">Đại lý nhận kho thấp hơn giá lẻ khoảng ' + mg + '%</p>' : '') + '</div>';
+      };
+      const chon = [['Ốp tường cao (≤ 5m)', 'GECKO WALL'], ['Lát nền, thay hồ dầu', 'GECKO FLOOR'], ['Gạch 120x120, công trình lớn, rung động', 'GECKO PRO'], ['Hồ bơi, spa, khu ẩm ướt, áp lực nước', 'GECKO SUPER']];
+      box.innerHTML =
+        '<div class="bg-white rounded-lg shadow p-3"><h2 class="font-bold flex items-center gap-2"><span>🧴</span> Keo dán gạch Gecko &amp; Bột chà ron Groutex</h2>' +
+        '<p class="text-xs text-gray-500 mb-2">Giá đ/bao, đã gồm VAT, loại AA — lấy từ tab "Bảng giá Keo". Bấm Copy để gửi thông tin cho khách.</p>' +
+        '<p class="text-xs font-bold text-gray-600 uppercase mb-1">Khách nói gì → bán dòng nào</p>' +
+        chon.map(c => '<div class="flex justify-between text-sm py-1 border-b last:border-0"><span>' + c[0] + '</span><b class="text-amber-700">' + c[1] + '</b></div>').join('') + '</div>' +
+        KEO_INFO_.filter(k => k.hang === 'keo').map(card).join('') +
+        '<div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-gray-700"><p class="font-bold mb-1">📐 Thông số chung keo Gecko</p><ul class="list-disc pl-5 space-y-0.5">' +
+        '<li>Đóng gói 25kg/bao, hạn sử dụng 12 tháng kể từ ngày sản xuất</li>' +
+        '<li>Độ dày thi công tối thiểu: lát nền 2mm (3,6 kg/m², bao 25kg đủ ~6,9 m²); ốp tường, dán đá/gạch lớn 3mm (5,4 kg/m², bao đủ ~4,6 m²)</li>' +
+        '<li>Thời gian điều chỉnh gạch 20–30 phút; độ trượt keo ≤ 0,5 mm</li>' +
+        '<li>Đạt ISO 13007-1:2014 và TCVN 7899-1:2008</li></ul></div>' +
+        '<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-gray-700"><p class="font-bold mb-1">💬 Lập luận bán hàng (so với hồ dầu)</p><ul class="list-disc pl-5 space-y-0.5">' +
+        '<li>Phòng khách 30 m² lát nền: hồ dầu ~3,8 triệu, dùng keo ~4,2 triệu → chênh chỉ ~400.000đ (1,14 lần)</li>' +
+        '<li>Không dùng keo mà bong gạch sau 2–3 năm: sửa 30 m² tốn ~13,2–16,4 triệu (gấp 3,6–4,4 lần chi phí ban đầu)</li>' +
+        '<li>Dán nhanh hơn, tiết kiệm nhân công, ít bong tróc nứt vỡ, dán được lên nền gạch cũ</li></ul></div>' +
+        '<p class="text-xs font-bold text-gray-600 uppercase mt-1">Bột chà ron</p>' + KEO_INFO_.filter(k => k.hang === 'ron').map(card).join('');
     }
 
     // Dashboard: mở/đóng danh sách đầy đủ cảnh báo (trước đây là tab "Cảnh báo" riêng)
@@ -1879,6 +1954,7 @@
         allStock = rebuilt;
       },
       bangGia(r) { allBangGia = r.data; },
+      keoGia(r) { allKeoGia = r.data || {}; if (currentTab === 'tracuu' && lastTracuuMode_ === 'keo') renderKeoTab_(); },
       tonKhoCty(r) { allTonKhoCty = r.data; },
       thuHoi(r) { allThuHoiSet = new Set(r.data); },
       quanLyMau(r) { allQuanLyMau = r.data || {}; },
@@ -1903,7 +1979,7 @@
       trienKhai(r) { trienKhaiLoadError = ''; allCongViec = r.tasks || []; allTrienKhai = r.progress || []; }
     };
     function applyBoot_(b) {
-      ['agencies', 'products', 'stock', 'bangGia', 'tonKhoCty', 'thuHoi', 'quanLyMau', 'viecDL', 'temQR', 'tem', 'donHoi', 'trienKhai'].forEach(function(k) {
+      ['agencies', 'products', 'stock', 'bangGia', 'keoGia', 'tonKhoCty', 'thuHoi', 'quanLyMau', 'viecDL', 'temQR', 'tem', 'donHoi', 'trienKhai'].forEach(function(k) {
         if (b[k] && b[k].success) { try { APPLY_[k](b[k]); } catch (e) { console.error('applyBoot_', k, e); } }
         else if (k === 'trienKhai') trienKhaiLoadError = (b[k] && b[k].message) || 'Không tải được dữ liệu';
       });
