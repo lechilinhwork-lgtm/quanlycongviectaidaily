@@ -2996,6 +2996,8 @@
         renderAgencyView(shareMode ? applyShareFilterToGroups_(gAll) : gAll);
       } catch (renderError) {
         console.error(renderError);
+        const bk = document.getElementById('agencyUpdateBox'), st = document.getElementById('agencyUpdateStash');
+        if (bk && st && !st.contains(bk)) st.appendChild(bk);   // giữ khối cập nhật khỏi bị xóa theo
         document.getElementById('agencyViewResults').innerHTML =
           '<p class="text-red-600 text-center py-8 bg-white rounded-lg shadow">Lỗi hiển thị dữ liệu: ' +
           renderError.message + '<br><span class="text-xs text-gray-400">Chụp màn hình này gửi để kiểm tra.</span></p>';
