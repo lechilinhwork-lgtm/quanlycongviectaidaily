@@ -439,6 +439,8 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div class="md:col-span-2">
+            <p class="text-[11px] font-semibold text-gray-500 mb-1">Chọn kích thước</p>
+            <div id="updSizeChips" class="flex gap-2 flex-wrap mb-3"></div>
             <label class="block text-sm font-semibold text-gray-700 mb-2">Lọc theo SAP/Tên (không bắt buộc)</label>
             <input type="text" id="searchKeyword" placeholder="Để trống = xem toàn bộ mẫu tại đại lý, hoặc gõ để lọc nhanh"
               oninput="searchRenderLimit_ = 100; debounce_(renderAgencyStockTable, 220)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -2207,6 +2209,15 @@
     let searchProductMeta = {};
 
     let searchRenderLimit_ = 100;
+    let updSizeSel_ = '';   // '' = mọi kích thước
+    function setUpdSize_(v) { updSizeSel_ = (updSizeSel_ === v) ? '' : v; searchRenderLimit_ = 100; renderAgencyStockTable(); }
+    function renderUpdSizeChips_() {
+      const box = document.getElementById('updSizeChips'); if (!box) return;
+      const m = {}; allProducts.forEach(p => { const k = sizeKey_(p.kichThuoc); m[k] = (m[k] || 0) + 1; });
+      const keys = Object.keys(m).sort((a, b) => (kichThuocArea(a) - kichThuocArea(b)) || a.localeCompare(b, 'vi', { numeric: true }));
+      const chip = (v, label, on) => '<button type="button" data-v="' + escHtml_(v) + '" onclick="setUpdSize_(this.dataset.v)" class="text-xs px-3 py-1.5 rounded-full border font-semibold ' + (on ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700') + '">' + escHtml_(label) + '</button>';
+      box.innerHTML = chip('', 'Tất cả (' + allProducts.length + ')', !updSizeSel_) + keys.map(k => chip(k, k + ' (' + m[k] + ')', updSizeSel_ === k)).join('');
+    }
     function searchShowMore_() { searchRenderLimit_ += 150; renderAgencyStockTable(); }
     function renderAgencyStockTable() {
       const agencyName = document.getElementById('updateAgency').value;
@@ -2221,6 +2232,8 @@
 
       const keyword = document.getElementById('searchKeyword').value.trim().toLowerCase();
       let products = allProducts;
+      renderUpdSizeChips_();
+      if (updSizeSel_) products = products.filter(p => sizeKey_(p.kichThuoc) === updSizeSel_);
       if (keyword) {
         products = products.filter(p =>
           p.sapCode.toLowerCase().includes(keyword) ||
@@ -3099,7 +3112,7 @@
     function shareMatch_(i, f, skip) {
       if (skip !== 'nhom' && f.nhom !== 'all' && (f.nhom === 'sale') !== !!i.dangSale) return false;
       if (skip !== 'nganh' && f.nganh !== 'all' && nganhOf_(i) !== f.nganh) return false;
-      if (skip !== 'size' && f.sizes.size && !f.sizes.has(i.kichThuoc || 'Khác')) return false;
+      if (skip !== 'size' && f.sizes.size && !f.sizes.has(sizeKey_(i.kichThuoc))) return false;
       return true;
     }
     // Danh sách đang hiển thị (sau khi lọc). skip: bỏ qua 1 tiêu chí để đếm số lượng cho các nút của tiêu chí đó.
@@ -3147,7 +3160,7 @@
 
       // Kích thước: đếm theo nhóm + ngành đang chọn; chọn 1 hoặc nhiều cỡ (không chọn cỡ nào = tất cả cỡ)
       const m = {};
-      shareVisible_(g, 'size').forEach(i => { const k = i.kichThuoc || 'Khác'; m[k] = (m[k] || 0) + 1; });
+      shareVisible_(g, 'size').forEach(i => { const k = sizeKey_(i.kichThuoc); m[k] = (m[k] || 0) + 1; });
       const keys = Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b, 'vi', { numeric: true }));
       if (keys.length) {
         html += row('Kích thước (chọn 1 hoặc nhiều cỡ)',
@@ -3394,6 +3407,8 @@
     // mẫu cỡ đó kèm ảnh; có thể lọc thêm Gạch / Ngói khi đại lý có ngói.
     let agencySizeSel_ = '';         // '' = chưa chọn cỡ; '__all' = xem tất cả
     let agencySizeNganh_ = 'all';
+    // Khoá kích thước chuẩn hoá: 300x600 và 300X600 là CÙNG 1 cỡ (trong Sheet có chỗ gõ chữ X hoa)
+    function sizeKey_(kt) { const k = String(kt === null || kt === undefined ? '' : kt).trim().toLowerCase().replace(/\s+/g, ''); return k || 'Khác'; }
     function agencyHeldItems_(g) {
       return [].concat(g.thuHoiCty, g.canGoMau, g.dangSale, g.conHang).filter(i => i.tonKho > 0);
     }
@@ -3408,7 +3423,7 @@
       if (!hasNgoi) agencySizeNganh_ = 'all';
       const list = agencySizeNganh_ === 'all' ? all : all.filter(i => nganhOf_(i) === agencySizeNganh_);
       const m = {};
-      list.forEach(i => { const k = i.kichThuoc || 'Khác'; m[k] = (m[k] || 0) + 1; });
+      list.forEach(i => { const k = sizeKey_(i.kichThuoc); m[k] = (m[k] || 0) + 1; });
       const keys = Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b, 'vi', { numeric: true }));
       if (agencySizeSel_ && agencySizeSel_ !== '__all' && !m[agencySizeSel_]) agencySizeSel_ = '';
 
@@ -3424,7 +3439,7 @@
         keys.map(k => sizeChipHtml_(k, k + ' (' + m[k] + ')', agencySizeSel_ === k)).join('') + '</div>';
 
       if (!agencySizeSel_) return html + '<p class="text-gray-400 text-center py-3 text-sm">Bấm một kích thước ở trên để xem các mẫu</p>';
-      const show = (agencySizeSel_ === '__all' ? list : list.filter(i => (i.kichThuoc || 'Khác') === agencySizeSel_))
+      const show = (agencySizeSel_ === '__all' ? list : list.filter(i => (sizeKey_(i.kichThuoc)) === agencySizeSel_))
         .slice().sort((a, b) => String(a.kichThuoc || '').localeCompare(String(b.kichThuoc || ''), 'vi', { numeric: true }) || String(a.tenApp).localeCompare(String(b.tenApp), 'vi', { numeric: true }));
       const tongMau = show.reduce((s, i) => s + (i.tonKho || 0), 0);
       html += '<p class="text-xs text-gray-600 mb-2"><b>' + show.length + '</b> mã · tổng <b>' + tongMau + '</b> mẫu tại đại lý</p>';
@@ -3438,10 +3453,11 @@
           '<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + escHtml_(i.tenApp || i.tenHang) + '</p>' +
           '<p class="text-xs text-gray-500">' + escHtml_(i.kichThuoc || '') + ' · <span class="status-' + String(i.trangThaiHH).toLowerCase() + ' px-1.5 py-0.5 rounded text-[11px] font-semibold">' + escHtml_(i.trangThaiHH) + '</span></p>' +
           (badges ? '<p class="mt-0.5">' + badges + '</p>' : '') + '</div>' +
-          '<div class="text-right flex-shrink-0"><p class="text-xl font-extrabold text-gray-800">' + i.tonKho + '</p><p class="text-[11px] text-gray-400">mẫu</p></div></div>';
+          '<div class="text-right flex-shrink-0"><input type="number" min="0" inputmode="numeric" value="' + (agencyEditCart[i.sapCode] ? agencyEditCart[i.sapCode].soLuong : i.tonKho) + '" data-sap="' + escHtml_(i.sapCode) + '" data-ten="' + escHtml_(i.tenApp || i.tenHang || '') + '" data-kt="' + escHtml_(i.kichThuoc || '') + '" data-tt="' + escHtml_(i.trangThaiHH) + '" onchange="sizeQtyEdit_(this)" class="w-16 h-10 text-center border rounded-lg text-base font-bold ' + (agencyEditCart[i.sapCode] ? 'bg-green-50 border-green-400' : '') + '"><p class="text-[11px] text-gray-400">mẫu (sửa)</p></div></div>';
       }).join('');
       return html;
     }
+    function sizeQtyEdit_(el) { const d = el.dataset; markAgencyItemEdited(d.sap, d.ten, d.kt, d.tt, el.value); el.classList.add('bg-green-50', 'border-green-400'); }
     function refreshSizePanel_() {
       const body = document.getElementById('acc-kichthuoc-body');
       if (body) body.innerHTML = sizePanelHtml_(computeAgencyGroups(currentAgencyForView));
@@ -3463,7 +3479,7 @@
       if (!hasNgoi) hetSizeNganh_ = 'all';
       const list = hetSizeNganh_ === 'all' ? all : all.filter(i => nganhOf_(i) === hetSizeNganh_);
       const m = {};
-      list.forEach(i => { const k = i.kichThuoc || 'Khác'; m[k] = (m[k] || 0) + 1; });
+      list.forEach(i => { const k = sizeKey_(i.kichThuoc); m[k] = (m[k] || 0) + 1; });
       const keys = Object.keys(m).sort((a, b) => m[b] - m[a] || a.localeCompare(b, 'vi', { numeric: true }));
       if (hetSizeSel_ && hetSizeSel_ !== '__all' && !m[hetSizeSel_]) hetSizeSel_ = '';
 
@@ -3478,7 +3494,7 @@
         hetChipHtml_('__all', 'Tất cả (' + list.length + ')', hetSizeSel_ === '__all') +
         keys.map(k => hetChipHtml_(k, k + ' (' + m[k] + ')', hetSizeSel_ === k)).join('') + '</div>';
       if (!hetSizeSel_) return html + '<p class="text-gray-400 text-center py-3 text-sm">Bấm một kích thước ở trên để xem các mã hết mẫu</p>';
-      const show = hetSizeSel_ === '__all' ? list : list.filter(i => (i.kichThuoc || 'Khác') === hetSizeSel_);
+      const show = hetSizeSel_ === '__all' ? list : list.filter(i => (sizeKey_(i.kichThuoc)) === hetSizeSel_);
       const conCty = show.filter(i => i.tonKhoCongTy > 0).length;
       html += '<p class="text-xs text-gray-600 mb-2"><b>' + show.length + '</b> mã hết mẫu · công ty còn hàng <b>' + conCty + '</b> mã</p>';
       return html + '<div class="space-y-2">' + show.map(i => agencyItemCard(i, 'hetHang')).join('') + '</div>';
@@ -3977,7 +3993,7 @@
           sub: tkQuaHan ? tkQuaHan + ' quá hạn' : (tkTong ? (tkTong - tkConLai) + '/' + tkTong + ' xong' : ''),
           body: renderViecRiengInner(groups.viecRieng) + '<p class="text-xs font-bold text-gray-500 uppercase mt-4 mb-1">Việc chung (áp cho mọi đại lý)</p>' + aiToolbarHtml_() + renderTrienKhaiInner(groups.trienKhai) },
         { id: 'kichthuoc', icon: '📐', label: 'Mẫu theo kích thước', n: agencyHeldItems_(groups).length, hot: false, color: 'border-indigo-500',
-          sub: (() => { const ks = new Set(agencyHeldItems_(groups).map(i => i.kichThuoc || 'Khác')); return ks.size ? ks.size + ' cỡ' : ''; })(), body: sizePanelHtml_(groups) },
+          sub: (() => { const ks = new Set(agencyHeldItems_(groups).map(i => sizeKey_(i.kichThuoc))); return ks.size ? ks.size + ' cỡ' : ''; })(), body: sizePanelHtml_(groups) },
         { id: 'sale', icon: '🔥', label: 'Đang Sale', n: groups.dangSale.length, hot: false, color: 'border-red-400',
           body: agencySectionInner(groups.dangSale, 'dangSale', 'Không có mã nào đang sale tại đại lý này') },
         { id: 'capnhat', icon: '✏️', label: 'Tất cả mã & cập nhật', n: '✎', hot: false, color: 'border-green-500', sub: 'sửa số lượng', body: '<div id="capnhatMount"></div>' },
