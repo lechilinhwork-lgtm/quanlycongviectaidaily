@@ -572,7 +572,7 @@
     <div id="caidat" class="tab-content hidden">
       <div id="quanLyMauCard" class="hidden bg-white rounded-lg shadow p-4 md:p-6 mb-6">
         <h2 class="text-xl font-bold mb-1 flex items-center gap-2"><i class="fas fa-clipboard-check text-red-600"></i> Quản lý mẫu — ưu tiên bỏ mẫu sớm</h2>
-        <p class="text-xs text-gray-500 mb-3">Mã chốt <b>Bỏ mẫu sớm</b> sẽ hiện đầu khối "Cần gỡ mẫu" ở từng đại lý, không bị nhắc bổ sung khi hết hàng và không lọt vào danh sách chia sẻ khách — để khách khỏi hỏi mẫu rồi nhận phản hồi "không có hàng". Dữ liệu nằm ở sheet <b>QuanLyMau</b>.</p>
+        <p class="text-xs text-gray-500 mb-3">Mã chốt <b>Bỏ mẫu sớm</b> sẽ hiện đầu khối "Cân nhắc gỡ mẫu" ở từng đại lý, không bị nhắc bổ sung khi hết hàng và không lọt vào danh sách chia sẻ khách — để khách khỏi hỏi mẫu rồi nhận phản hồi "không có hàng". Dữ liệu nằm ở sheet <b>QuanLyMau</b>.</p>
         <div id="qlmSummary" class="flex gap-2 flex-wrap mb-3 text-sm"></div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
           <input id="qlmSearch" type="text" oninput="debounce_(renderQuanLyMau_, 200)" placeholder="Tìm mã / tên / kích thước..." class="px-3 py-2 border rounded-lg">
@@ -2739,7 +2739,9 @@
 
         const congTyData = allTonKhoCty[p.sapCode];
         const congTy = congTyData ? congTyData.total : 0;
-        const khoConHang = (isHetHang && congTyData) ? congTyData.byKho.slice(0, 5) : [];
+        // Hết mẫu: 5 kho còn nhiều nhất (để bổ sung). Mẫu cần gỡ/thu hồi: TẤT CẢ kho còn hàng + số lô (để cân nhắc bỏ mẫu).
+        const canNhacGo = qty > 0 && (isThuHoi || boSom || TRANG_THAI_BO_MAU.includes(p.trangThaiHH));
+        const khoConHang = congTyData ? (isHetHang ? congTyData.byKho.slice(0, 5) : (canNhacGo ? congTyData.byKho.slice(0, 12) : [])) : [];
 
         const item = {
           sapCode: p.sapCode, tenHang: p.tenHang, tenApp: cleanTenMau_(p), sanPham: p.sanPham, kichThuoc: p.kichThuoc,
@@ -3008,7 +3010,7 @@
         'Giá lẻ (đ/m²)': i.giaLe || '',
         'Giá Sale nhận kho (đ/m²)': i.giaSaleNhanKho || '',
         'Giá Sale đi giao (đ/m²)': i.giaSaleDiGiao || '',
-        'Kho còn hàng': (i.khoConHang || []).map(k => k.ten + ': ' + k.qty).join('; ')
+        'Kho còn hàng': (i.khoConHang || []).map(k => k.ten + ': ' + k.qty + (k.lo ? ' (' + k.lo + ' lô)' : '')).join('; ')
       }));
       const fmtDate = v => { const t = new Date(v); return isNaN(t) ? '' : t.toLocaleString('vi-VN'); };
 
@@ -3034,7 +3036,7 @@
         });
       addSheet('Mẫu tại đại lý', coMau);
       addSheet('CTY yêu cầu gỡ', productRows(g.thuHoiCty));
-      addSheet('Cần gỡ mẫu', productRows(g.canGoMau));
+      addSheet('Cân nhắc gỡ mẫu', productRows(g.canGoMau));
       addSheet('Đang Sale', productRows(g.dangSale));
       addSheet('Còn hàng', productRows(g.conHang));
       addSheet('Hết mẫu', productRows(g.hetHang));
@@ -3107,12 +3109,15 @@
         ? `<p class="text-sm text-red-600 font-semibold mt-1">Giá Sale: ${formatVND(item.giaSaleNhanKho)} (nhận kho) / ${formatVND(item.giaSaleDiGiao)} (đi giao)</p>`
         : (item.giaLe ? `<p class="text-sm text-gray-500 mt-1">Giá lẻ: ${formatVND(item.giaLe)}</p>` : '');
 
-      const congTyHtml = mode === 'hetHang'
+      const tongLo = (item.khoConHang || []).reduce((a, k) => a + (k.lo || 0), 0);
+      const congTyHtml = (mode === 'canGoMau' || mode === 'thuHoiCty')
+        ? `<p class="text-sm mt-1 ${item.tonKhoCongTy > 0 ? 'text-orange-700' : 'text-green-700'}">🏭 Công ty còn: <strong>${item.tonKhoCongTy}</strong> thùng${tongLo ? ' · <strong>' + tongLo + '</strong> lô' : ''}${item.tonKhoCongTy > 0 ? '' : ' — hết hàng, nên gỡ'}</p>`
+        : mode === 'hetHang'
         ? `<p class="text-sm mt-1 ${item.tonKhoCongTy > 0 ? 'text-green-700' : 'text-gray-400'}">🏭 Công ty còn: <strong>${item.tonKhoCongTy}</strong> thùng</p>`
         : `<p class="text-xs text-gray-400 mt-1">Công ty còn: ${item.tonKhoCongTy} thùng</p>`;
        
         const khoHtml = (item.khoConHang && item.khoConHang.length > 0)
-        ? `<div class="text-xs text-gray-600 mt-0.5 font-medium">${item.khoConHang.map(k => `${k.ten}: ${k.qty}`).join(' ')}</div>`
+        ? `<div class="mt-1 flex flex-wrap gap-1">${item.khoConHang.map(k => `<span class="inline-block bg-white border text-gray-700 text-xs px-2 py-0.5 rounded">${escHtml_(k.ten)}: <b>${k.qty}</b> thùng${k.lo ? ' · <b>' + k.lo + ' lô</b>' : ''}</span>`).join('')}</div>`
         : (item.stockDetail ? `<div class="text-xs text-gray-600 mt-0.5 font-medium">${item.stockDetail}</div>` : '');
       const qmHtml = item.boSom
         ? `<p class="text-xs font-bold text-red-700 mt-1">⛔ Bỏ mẫu sớm — gỡ trước, đừng giới thiệu khách (sắp hết hàng)</p>`
@@ -4063,7 +4068,7 @@
       const panels = [
         { id: 'thuhoi', icon: '🏢', label: 'CTY yêu cầu gỡ', n: groups.thuHoiCty.length, hot: groups.thuHoiCty.length > 0, color: 'border-purple-600',
           body: agencySectionInner(groups.thuHoiCty, 'thuHoiCty', 'Không có mã nào bị công ty yêu cầu gỡ') },
-        { id: 'goMau', icon: '🔴', label: 'Cần gỡ mẫu', n: groups.canGoMau.length, hot: groups.canGoMau.length > 0, color: 'border-red-500',
+        { id: 'goMau', icon: '🔴', label: 'Cân nhắc gỡ mẫu', n: groups.canGoMau.length, hot: groups.canGoMau.length > 0, color: 'border-red-500',
           sub: boSomN ? boSomN + ' bỏ sớm' : '', body: agencySectionInner(groups.canGoMau, 'canGoMau', 'Không có mẫu nào cần gỡ') },
         { id: 'tem', icon: '🏷️', label: 'Dán/thay tem', n: groups.temCanThay.length, hot: groups.temCanThay.length > 0, color: 'border-orange-500',
           body: renderTemCanThayInner(groups.temCanThay) },
