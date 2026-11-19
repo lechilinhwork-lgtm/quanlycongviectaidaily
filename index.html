@@ -332,7 +332,10 @@
           Báo cáo tổng quan theo đại lý
         </h2>
         <p class="text-xs text-gray-500 mb-4">Toàn bộ 99 đại lý — dùng để nắm nhanh đại lý nào cần chú ý, đội Sale nào đang xử lý nhiều việc nhất.</p>
+        <div class="flex justify-end mb-3"><button type="button" onclick="exportMgrExcel_()" class="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 active:bg-green-700"><i class="fas fa-file-excel"></i> Tải Excel tổng quan</button></div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="managerReportTotals"></div>
+        <div id="mgrDash" class="mb-5"></div>
+        <h3 class="font-bold text-gray-700 mb-2 text-sm"><i class="fas fa-store"></i> Chi tiết từng đại lý</h3>
         <div class="mb-3">
           <input type="text" id="managerReportSearch" placeholder="Tìm theo tên đại lý hoặc Sale phụ trách..."
             oninput="debounce_(renderManagerReport, 220)" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
@@ -1821,6 +1824,119 @@
     // Gộp nhiều lần gọi liên tiếp (8 lệnh tải dữ liệu về lần lượt) thành 1 lần vẽ — báo cáo này
     // tính cho toàn bộ đại lý nên rất nặng nếu vẽ lại mỗi lần.
     let mgrRptTimer_ = null;
+
+    // ===== DASHBOARD THEO SALE + EXCEL TỔNG QUAN (cho Quản lý/sếp) =====
+    // Mô hình dữ liệu dùng chung cho bảng, dashboard và file Excel: mỗi đại lý 1 dòng + gom theo Sale phụ trách.
+    // Độ phủ mẫu = số mã đang trưng / (số mã đang trưng + số mã đang kinh doanh mà đại lý chưa có).
+    function buildMgrModel_() {
+      const rows = [], hetSet = new Set(), attn = {};
+      allAgencies.forEach(a => {
+        const g = computeAgencyGroups(a.tenDaiLy);
+        const held = [].concat(g.thuHoiCty, g.canGoMau, g.dangSale, g.conHang);
+        g.hetHang.forEach(i => hetSet.add(i.sapCode));
+        g.thuHoiCty.concat(g.canGoMau).forEach(i => {
+          const x = attn[i.sapCode] || (attn[i.sapCode] = { item: i, nhom: i.thuHoiMau ? 'CTY yêu cầu gỡ' : (i.boSom ? 'Bỏ mẫu sớm' : 'Cân nhắc gỡ'), soDL: 0, tongMau: 0 });
+          x.soDL++; x.tongMau += i.tonKho || 0;
+        });
+        const vrQuaHan = g.viecRieng.filter(isQuaHan_).length, tkQuaHan = g.trienKhai.filter(isQuaHan_).length;
+        rows.push({
+          tenDaiLy: a.tenDaiLy, ma: a.ma || '', quanLy: a.quanLy || '',
+          thuHoiCty: g.thuHoiCty.length, canGoMau: g.canGoMau.length, dangSale: g.dangSale.length, conHang: g.conHang.length, hetHang: g.hetHang.length,
+          temCanThay: g.temCanThay.length, donHoi: g.donHoi.length,
+          tkXong: g.trienKhai.filter(t => t.done).length, tkTong: g.trienKhai.length,
+          vrXong: g.viecRieng.filter(t => t.done).length, vrTong: g.viecRieng.length,
+          quaHan: vrQuaHan + tkQuaHan,
+          soMa: held.length, tongMau: held.reduce((s2, i) => s2 + (i.tonKho || 0), 0),
+          phu: held.length + g.hetHang.length ? held.length / (held.length + g.hetHang.length) : 0,
+          tk: g.trienKhai
+        });
+      });
+      const bySale = {};
+      rows.forEach(r => {
+        const k = normalizeVN((r.quanLy || '').trim()) || '_none';
+        const x = bySale[k] || (bySale[k] = { ten: (r.quanLy || '').trim() || '(Chưa phân Sale)', soDL: 0, soMa: 0, tongMau: 0, thuHoiCty: 0, canGoMau: 0, dangSale: 0, hetHang: 0, temCanThay: 0, donHoi: 0, tkXong: 0, tkTong: 0, vrXong: 0, vrTong: 0, quaHan: 0, dls: [] });
+        x.soDL++; x.soMa += r.soMa; x.tongMau += r.tongMau; x.thuHoiCty += r.thuHoiCty; x.canGoMau += r.canGoMau; x.dangSale += r.dangSale; x.hetHang += r.hetHang;
+        x.temCanThay += r.temCanThay; x.donHoi += r.donHoi; x.tkXong += r.tkXong; x.tkTong += r.tkTong; x.vrXong += r.vrXong; x.vrTong += r.vrTong; x.quaHan += r.quaHan; x.dls.push(r);
+      });
+      const sales = Object.keys(bySale).map(k => {
+        const x = bySale[k];
+        x.phu = x.soMa + x.hetHang ? x.soMa / (x.soMa + x.hetHang) : 0;
+        x.tienDo = (x.tkTong + x.vrTong) ? (x.tkXong + x.vrXong) / (x.tkTong + x.vrTong) : 0;
+        return x;
+      }).sort((a, b) => (b.thuHoiCty - a.thuHoiCty) || (b.canGoMau - a.canGoMau));
+      const sum = f => rows.reduce((s2, r) => s2 + r[f], 0);
+      const tong = { soDL: rows.length, soSale: sales.length, soMa: sum('soMa'), tongMau: sum('tongMau'), hetHang: sum('hetHang'), tkXong: sum('tkXong') + sum('vrXong'), tkTong: sum('tkTong') + sum('vrTong'), quaHan: sum('quaHan') };
+      tong.phu = tong.soMa + tong.hetHang ? tong.soMa / (tong.soMa + tong.hetHang) : 0;
+      tong.tienDo = tong.tkTong ? tong.tkXong / tong.tkTong : 0;
+      return { rows: rows, sales: sales, tong: tong, hetDistinct: hetSet.size, attn: Object.keys(attn).map(k => attn[k]) };
+    }
+    function pct_(v) { return Math.round(v * 100); }
+    function barHtml_(v, color) { const p = pct_(v); return '<div class="flex items-center gap-1.5 min-w-[96px]"><div class="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden"><div class="h-2 rounded-full ' + color + '" style="width:' + p + '%"></div></div><span class="text-xs font-semibold text-gray-700 w-9 text-right">' + p + '%</span></div>'; }
+    function renderMgrDash_(m) {
+      const box = document.getElementById('mgrDash'); if (!box) return;
+      const t = m.tong;
+      const kpi = (v, lb, cls) => '<div class="text-center p-3 rounded-lg border ' + cls + '"><p class="text-xl font-extrabold">' + v + '</p><p class="text-[11px] font-semibold mt-0.5">' + lb + '</p></div>';
+      const score = r => r.thuHoiCty * 3 + r.canGoMau + r.quaHan * 2 + r.temCanThay + r.donHoi;
+      const top = m.rows.slice().sort((a, b) => score(b) - score(a)).slice(0, 10).filter(r => score(r) > 0);
+      box.innerHTML =
+        '<div class="grid grid-cols-2 md:grid-cols-6 gap-2 mb-4">' +
+        kpi(t.soSale, 'Sale phụ trách', 'bg-indigo-50 border-indigo-200 text-indigo-700') + kpi(t.soDL, 'Đại lý', 'bg-indigo-50 border-indigo-200 text-indigo-700') +
+        kpi(t.tongMau.toLocaleString('vi-VN'), 'Mẫu đang trưng bày', 'bg-blue-50 border-blue-200 text-blue-700') +
+        kpi(pct_(t.phu) + '%', 'Độ phủ mẫu (có / cần có)', pct_(t.phu) >= 70 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700') +
+        kpi(pct_(t.tienDo) + '%', 'Tiến độ việc tại đại lý', pct_(t.tienDo) >= 70 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700') +
+        kpi(t.quaHan, 'Việc quá hạn', t.quaHan ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-500') + '</div>' +
+        '<h3 class="font-bold text-gray-700 mb-2 text-sm"><i class="fas fa-user-tie"></i> Theo Sale phụ trách</h3>' +
+        '<div class="overflow-x-auto border rounded-lg mb-4"><table class="w-full text-sm min-w-[860px]"><thead class="bg-gray-100"><tr>' +
+        ['Sale', 'Đại lý', 'Mẫu trưng', '🏢 Thu hồi', 'Cân nhắc gỡ', 'Đang Sale', 'Hết mẫu', 'Độ phủ mẫu', 'Tem thay', 'Đơn hỏi', 'Tiến độ việc', 'Quá hạn'].map((h, i) => '<th class="px-2 py-2 ' + (i === 0 ? 'text-left' : 'text-center') + ' font-semibold text-gray-700 text-xs">' + h + '</th>').join('') + '</tr></thead><tbody>' +
+        m.sales.map(x => '<tr class="border-t"><td class="px-2 py-2 font-semibold">' + escHtml_(x.ten) + '</td><td class="px-2 py-2 text-center">' + x.soDL + '</td><td class="px-2 py-2 text-center">' + x.tongMau.toLocaleString('vi-VN') + '</td>' +
+          '<td class="px-2 py-2 text-center font-bold ' + (x.thuHoiCty ? 'text-purple-700' : 'text-gray-400') + '">' + x.thuHoiCty + '</td><td class="px-2 py-2 text-center font-semibold ' + (x.canGoMau ? 'text-red-600' : 'text-gray-400') + '">' + x.canGoMau + '</td>' +
+          '<td class="px-2 py-2 text-center text-red-500">' + x.dangSale + '</td><td class="px-2 py-2 text-center text-orange-600">' + x.hetHang + '</td><td class="px-2 py-2">' + barHtml_(x.phu, pct_(x.phu) >= 70 ? 'bg-green-500' : 'bg-orange-400') + '</td>' +
+          '<td class="px-2 py-2 text-center">' + x.temCanThay + '</td><td class="px-2 py-2 text-center">' + x.donHoi + '</td><td class="px-2 py-2">' + barHtml_(x.tienDo, pct_(x.tienDo) >= 70 ? 'bg-teal-500' : 'bg-orange-400') + '</td>' +
+          '<td class="px-2 py-2 text-center font-semibold ' + (x.quaHan ? 'text-red-600' : 'text-gray-400') + '">' + x.quaHan + '</td></tr>').join('') +
+        '</tbody></table></div>' +
+        (top.length ? '<h3 class="font-bold text-gray-700 mb-2 text-sm"><i class="fas fa-exclamation-triangle text-red-500"></i> 10 đại lý cần chú ý nhất</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-2">' +
+          top.map((r, i) => '<div class="p-2.5 border rounded-lg bg-white flex items-start gap-2"><span class="w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center flex-shrink-0">' + (i + 1) + '</span><div class="min-w-0"><p class="text-sm font-semibold truncate">' + escHtml_(r.tenDaiLy) + '</p><p class="text-xs text-gray-500">Sale: ' + escHtml_(r.quanLy || '—') + '</p><p class="text-xs mt-0.5">' +
+            (r.thuHoiCty ? '<span class="text-purple-700 font-semibold">🏢 ' + r.thuHoiCty + ' thu hồi</span> · ' : '') + (r.canGoMau ? '<span class="text-red-600">' + r.canGoMau + ' cân nhắc gỡ</span> · ' : '') + (r.quaHan ? '<span class="text-red-600">' + r.quaHan + ' việc quá hạn</span> · ' : '') + (r.temCanThay ? r.temCanThay + ' tem · ' : '') + (r.donHoi ? r.donHoi + ' đơn hỏi · ' : '') + 'phủ ' + pct_(r.phu) + '%</p></div></div>').join('') + '</div>' : '');
+    }
+    function exportMgrExcel_() {
+      if (typeof XLSX === 'undefined') { alert('Chưa tải được thư viện xuất Excel, kiểm tra mạng rồi thử lại'); return; }
+      if (!allAgencies.length || !allProducts.length) { alert('Dữ liệu chưa tải xong, đợi một chút rồi thử lại'); return; }
+      const m = buildMgrModel_(), t = m.tong, now = new Date();
+      const sheet = (name, aoa, widths) => { const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = widths.map(w => ({ wch: w })); return [name, ws]; };
+      const sheets = [];
+      sheets.push(sheet('Tổng quan', [
+        ['BÁO CÁO TỔNG QUAN MẪU TRƯNG BÀY – ĐỒNG TÂM KV23'], ['Xuất lúc', now.toLocaleString('vi-VN')], [],
+        ['Chỉ số', 'Giá trị', 'Ghi chú'],
+        ['Số Sale phụ trách', t.soSale, ''], ['Số đại lý', t.soDL, ''], ['Tổng mẫu đang trưng bày', t.tongMau, 'cộng số mẫu của mọi mã tại mọi đại lý'],
+        ['Độ phủ mẫu', t.phu, 'số mã đại lý có / (có + chưa có nhưng đang kinh doanh)'], ['Tiến độ việc tại đại lý', t.tienDo, 'việc triển khai + việc riêng đã xong'],
+        ['Việc quá hạn', t.quaHan, ''], ['Lượt mã hết mẫu tại đại lý', t.hetHang, 'mã × đại lý'], ['Số mã hết mẫu khác nhau', m.hetDistinct, ''],
+        ['CTY yêu cầu gỡ (lượt)', m.rows.reduce((a, r) => a + r.thuHoiCty, 0), ''], ['Cân nhắc gỡ mẫu (lượt)', m.rows.reduce((a, r) => a + r.canGoMau, 0), 'BM/NSX/MD hoặc bỏ mẫu sớm'],
+        ['Tem cần thay', m.rows.reduce((a, r) => a + r.temCanThay, 0), ''], ['Đơn hỏi đang treo', m.rows.reduce((a, r) => a + r.donHoi, 0), '']
+      ], [34, 16, 60]));
+      sheets.push(sheet('Theo Sale', [['Sale phụ trách', 'Số đại lý', 'Số mã đang trưng', 'Tổng mẫu trưng', 'CTY yêu cầu gỡ', 'Cân nhắc gỡ', 'Đang Sale', 'Hết mẫu (lượt)', 'Độ phủ mẫu', 'Tem cần thay', 'Đơn hỏi treo', 'Việc xong', 'Tổng việc', 'Tiến độ việc', 'Việc quá hạn']]
+        .concat(m.sales.map(x => [x.ten, x.soDL, x.soMa, x.tongMau, x.thuHoiCty, x.canGoMau, x.dangSale, x.hetHang, x.phu, x.temCanThay, x.donHoi, x.tkXong + x.vrXong, x.tkTong + x.vrTong, x.tienDo, x.quaHan])), [26, 10, 14, 14, 14, 12, 10, 14, 12, 12, 12, 10, 10, 12, 12]));
+      sheets.push(sheet('Theo đại lý', [['Mã KH', 'Đại lý', 'Sale phụ trách', 'Số mã đang trưng', 'Tổng mẫu trưng', 'CTY yêu cầu gỡ', 'Cân nhắc gỡ', 'Đang Sale', 'Còn hàng thường', 'Hết mẫu', 'Độ phủ mẫu', 'Tem cần thay', 'Đơn hỏi treo', 'Việc chung xong', 'Việc chung tổng', 'Việc riêng xong', 'Việc riêng tổng', 'Việc quá hạn']]
+        .concat(m.rows.slice().sort((a, b) => (b.thuHoiCty - a.thuHoiCty) || (b.canGoMau - a.canGoMau)).map(r => [r.ma, r.tenDaiLy, r.quanLy, r.soMa, r.tongMau, r.thuHoiCty, r.canGoMau, r.dangSale, r.conHang, r.hetHang, r.phu, r.temCanThay, r.donHoi, r.tkXong, r.tkTong, r.vrXong, r.vrTong, r.quaHan])), [10, 46, 24, 12, 12, 12, 12, 10, 12, 10, 12, 12, 12, 12, 12, 12, 12, 12]));
+      const attn = m.attn.slice().sort((a, b) => (a.nhom === 'CTY yêu cầu gỡ' ? 0 : 1) - (b.nhom === 'CTY yêu cầu gỡ' ? 0 : 1) || b.tongMau - a.tongMau);
+      sheets.push(sheet('Mã cân nhắc gỡ', [['Mã SAP', 'Tên mẫu', 'Kích thước', 'Trạng thái', 'Nhóm', 'Số đại lý đang trưng', 'Tổng mẫu đang trưng', 'Tồn công ty (thùng)', 'Số lô còn (các kho)', 'Kho còn hàng (thùng · lô)']]
+        .concat(attn.map(x => { const i = x.item, ks = i.khoConHang || []; return [i.sapCode, i.tenApp || i.tenHang, i.kichThuoc, i.trangThaiHH, x.nhom, x.soDL, x.tongMau, i.tonKhoCongTy || 0, ks.reduce((a, k) => a + (k.lo || 0), 0), ks.map(k => k.ten + ': ' + k.qty + (k.lo ? ' (' + k.lo + ' lô)' : '')).join('; ')]; })), [12, 28, 12, 10, 18, 12, 14, 14, 12, 80]));
+      const tkMap = {};
+      m.rows.forEach(r => (r.tk || []).forEach(v => { const x = tkMap[v.ma] || (tkMap[v.ma] = { ten: v.ten, nhom: v.nhom, han: v.han, xong: 0, tong: 0 }); x.tong++; if (v.done) x.xong++; }));
+      sheets.push(sheet('Việc triển khai', [['Việc', 'Nhóm', 'Hạn chót', 'Số đại lý đã xong', 'Tổng đại lý', 'Tỷ lệ xong']]
+        .concat(Object.keys(tkMap).map(k => [tkMap[k].ten, tkMap[k].nhom, tkMap[k].han, tkMap[k].xong, tkMap[k].tong, tkMap[k].tong ? tkMap[k].xong / tkMap[k].tong : 0])), [50, 14, 12, 16, 12, 12]));
+      const wb = XLSX.utils.book_new();
+      // định dạng % cho các cột tỷ lệ
+      const fmtCols = { 'Tổng quan': null, 'Theo Sale': [8, 13], 'Theo đại lý': [10], 'Việc triển khai': [5] };
+      sheets.forEach(([name, ws]) => {
+        (fmtCols[name] || []).forEach(c => { const rng = XLSX.utils.decode_range(ws['!ref']); for (let r = 1; r <= rng.e.r; r++) { const cell = ws[XLSX.utils.encode_cell({ r: r, c: c })]; if (cell && typeof cell.v === 'number') cell.z = '0%'; } });
+        if (name === 'Tổng quan') { ['B8', 'B9'].forEach(a => { if (ws[a]) ws[a].z = '0%'; }); }
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      });
+      const pad = n => String(n).padStart(2, '0');
+      XLSX.writeFile(wb, 'BaoCao_TongQuan_KV23_' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '.xlsx');
+      toast('Đã tải Excel tổng quan');
+    }
+
     function renderManagerReport() {
       clearTimeout(mgrRptTimer_);
       mgrRptTimer_ = setTimeout(renderManagerReportNow_, 250);
@@ -1831,22 +1947,8 @@
       if (!allAgencies.length || !allProducts.length) return;
 
       const keyword = normalizeVN(document.getElementById('managerReportSearch').value.trim());
-      let rows = allAgencies.map(a => {
-        const g = computeAgencyGroups(a.tenDaiLy);
-        return {
-          tenDaiLy: a.tenDaiLy,
-          quanLy: a.quanLy || '',
-          thuHoiCty: g.thuHoiCty.length,
-          canGoMau: g.canGoMau.length,
-          dangSale: g.dangSale.length,
-          conHang: g.conHang.length,
-          hetHang: g.hetHang.length,
-          temCanThay: g.temCanThay.length,
-          donHoi: g.donHoi.length,
-          tkXong: g.trienKhai.filter(t => t.done).length,
-          tkTong: g.trienKhai.length
-        };
-      });
+      const model = buildMgrModel_();
+      let rows = model.rows.slice();
 
       if (keyword) {
         rows = rows.filter(r => normalizeVN(r.tenDaiLy).includes(keyword) || normalizeVN(r.quanLy).includes(keyword));
@@ -1875,13 +1977,15 @@
         </div>
         <div class="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
           <p class="text-2xl font-bold text-orange-600">${totals.hetHang}</p>
-          <p class="text-xs text-orange-700 font-semibold mt-1">Tổng mã hết hàng cần bổ sung</p>
+          <p class="text-xs text-orange-700 font-semibold mt-1">Lượt mã hết mẫu tại đại lý <span class="font-normal">(${model.hetDistinct} mã khác nhau)</span></p>
         </div>
         <div class="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
           <p class="text-2xl font-bold text-blue-600">${totals.donHoi}</p>
           <p class="text-xs text-blue-700 font-semibold mt-1">Tổng đơn hỏi đang treo</p>
         </div>
       `;
+
+      renderMgrDash_(model);
 
       const cardsBox = document.getElementById('managerReportCards');
       if (cardsBox) {
