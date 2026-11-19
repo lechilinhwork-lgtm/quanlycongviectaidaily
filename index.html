@@ -299,7 +299,7 @@
       <div class="bg-white rounded-lg shadow p-4 md:p-6">
         <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
           <i class="fas fa-exclamation-circle text-red-600"></i>
-          Cảnh báo — mẫu cần gỡ
+          Cảnh báo — mẫu cân nhắc gỡ
         </h2>
         <div id="topAlerts" class="space-y-3">
           <p class="text-gray-500 text-center py-8">
@@ -346,7 +346,7 @@
                 <th class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('tenDaiLy')">Đại lý</th>
                 <th class="px-3 py-2 text-left font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('quanLy')">Sale phụ trách</th>
                 <th class="px-3 py-2 text-center font-semibold text-purple-700 cursor-pointer" onclick="sortManagerReport('thuHoiCty')">🏢 Thu hồi CTY</th>
-                <th class="px-3 py-2 text-center font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('canGoMau')">Cần gỡ</th>
+                <th class="px-3 py-2 text-center font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('canGoMau')">Cân nhắc gỡ</th>
                 <th class="px-3 py-2 text-center font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('dangSale')">Đang Sale</th>
                 <th class="px-3 py-2 text-center font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('conHang')">Còn hàng</th>
                 <th class="px-3 py-2 text-center font-semibold text-gray-700 cursor-pointer" onclick="sortManagerReport('hetHang')">Hết hàng</th>
@@ -367,7 +367,7 @@
           <div class="flex gap-2 mb-3">
             <select id="managerReportSortCol" onchange="sortManagerReport(this.value, true)" class="flex-1 px-3 py-2 border rounded-lg text-sm">
               <option value="thuHoiCty">Sắp theo: Thu hồi CTY</option>
-              <option value="canGoMau">Sắp theo: Cần gỡ</option>
+              <option value="canGoMau">Sắp theo: Cân nhắc gỡ</option>
               <option value="dangSale">Sắp theo: Đang Sale</option>
               <option value="hetHang">Sắp theo: Hết hàng</option>
               <option value="temCanThay">Sắp theo: Tem cần thay</option>
@@ -1523,7 +1523,7 @@
         '<span class="px-3 py-1 rounded-full bg-red-100 text-red-800 font-semibold">⛔ Bỏ mẫu sớm: ' + count('Bỏ mẫu sớm') + '</span>' +
         '<span class="px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🔎 Xem lại: ' + count('Xem lại') + '</span>' +
         '<span class="px-3 py-1 rounded-full bg-green-100 text-green-800 font-semibold">✔ Giữ: ' + count('Giữ') + '</span>' +
-        (boSomDangTrung ? '<span class="px-3 py-1 rounded-full bg-gray-100 text-gray-700">Đang trưng bày tại ' + boSomDangTrung + ' lượt đại lý cần gỡ</span>' : '');
+        (boSomDangTrung ? '<span class="px-3 py-1 rounded-full bg-gray-100 text-gray-700">Đang trưng bày tại ' + boSomDangTrung + ' lượt đại lý cân nhắc gỡ</span>' : '');
 
       const selNhom = document.getElementById('qlmFilterNhom');
       const nhoms = Array.from(new Set(codes.map(c => allQuanLyMau[c].nhom).filter(Boolean)));
@@ -1871,7 +1871,7 @@
         </div>
         <div class="text-center p-3 bg-red-50 rounded-lg border border-red-200">
           <p class="text-2xl font-bold text-red-600">${totals.canGoMau}</p>
-          <p class="text-xs text-red-700 font-semibold mt-1">Tổng mã cần gỡ (BM/NSX)</p>
+          <p class="text-xs text-red-700 font-semibold mt-1">Tổng mã cân nhắc gỡ (BM/NSX)</p>
         </div>
         <div class="text-center p-3 bg-orange-50 rounded-lg border border-orange-200">
           <p class="text-2xl font-bold text-orange-600">${totals.hetHang}</p>
@@ -1917,7 +1917,7 @@
             <p class="text-xs text-gray-500 mb-2">Sale: ${r.quanLy || '—'}</p>
             <div class="grid grid-cols-3 gap-2 text-center text-xs">
               <div><p class="font-bold text-base ${r.thuHoiCty > 0 ? 'text-purple-700' : 'text-gray-400'}">${r.thuHoiCty}</p><p class="text-gray-500">🏢 Thu hồi</p></div>
-              <div><p class="font-bold text-base ${r.canGoMau > 0 ? 'text-red-600' : 'text-gray-400'}">${r.canGoMau}</p><p class="text-gray-500">Cần gỡ</p></div>
+              <div><p class="font-bold text-base ${r.canGoMau > 0 ? 'text-red-600' : 'text-gray-400'}">${r.canGoMau}</p><p class="text-gray-500">Cân nhắc gỡ</p></div>
               <div><p class="font-bold text-base ${r.dangSale > 0 ? 'text-red-500' : 'text-gray-400'}">${r.dangSale}</p><p class="text-gray-500">Đang Sale</p></div>
               <div><p class="font-bold text-base text-gray-600">${r.conHang}</p><p class="text-gray-500">Còn hàng</p></div>
               <div><p class="font-bold text-base ${r.hetHang > 0 ? 'text-orange-600' : 'text-gray-400'}">${r.hetHang}</p><p class="text-gray-500">Hết hàng</p></div>
@@ -3529,7 +3529,7 @@
       html += show.map(i => {
         const badges = (i.thuHoiMau ? '<span class="text-[11px] font-bold text-purple-700">🏢 CTY yêu cầu gỡ</span> ' : '') +
           (i.boSom ? '<span class="text-[11px] font-bold text-red-700">⛔ Bỏ sớm</span> ' : '') +
-          (!i.boSom && !i.thuHoiMau && TRANG_THAI_BO_MAU.includes(i.trangThaiHH) ? '<span class="text-[11px] font-bold text-orange-700">🔴 Cần gỡ</span> ' : '') +
+          (!i.boSom && !i.thuHoiMau && TRANG_THAI_BO_MAU.includes(i.trangThaiHH) ? '<span class="text-[11px] font-bold text-orange-700">🔴 Cân nhắc gỡ</span> ' : '') +
           (i.dangSale ? '<span class="text-[11px] font-bold text-red-600">🔥 Sale</span>' : '');
         return '<div class="flex items-center gap-3 p-2.5 border rounded-lg mb-1.5 bg-white">' +
           productImageThumb(i.sapCode, i.tenApp || i.tenHang, i.kichThuoc, currentAgencyForView) +
@@ -3733,7 +3733,7 @@
       const so = app === 0 ? '<span class="text-green-700 font-semibold">🟢 Mới thấy</span>' : (app === n ? '<span class="text-gray-500">⚪ Khớp (app ghi ' + app + ')</span>' : '<span class="text-amber-700 font-semibold">🟡 App ghi ' + app + '</span>');
       const warn = (allThuHoiSet.has(sap) ? '<span class="text-purple-700 font-bold text-[11px]">🏢 CTY yêu cầu gỡ </span>' : '') +
         ((allQuanLyMau[sap] && allQuanLyMau[sap].quyetDinh === 'Bỏ mẫu sớm') ? '<span class="text-red-700 font-bold text-[11px]">⛔ Bỏ sớm </span>' : '') +
-        (SCAN_NO_DONG.has(p.trangThaiHH) ? '<span class="text-orange-700 font-bold text-[11px]">🔴 Cần gỡ </span>' : '') +
+        (SCAN_NO_DONG.has(p.trangThaiHH) ? '<span class="text-orange-700 font-bold text-[11px]">🔴 Cân nhắc gỡ </span>' : '') +
         ((allBangGia[sap] && allBangGia[sap].dangSale) ? '<span class="text-red-600 font-bold text-[11px]">🔥 Sale — kiểm tra tem sale</span>' : '');
       return '<div class="flex items-center gap-2 p-2 border rounded-lg mb-1.5 bg-white"><div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate">' + escHtml_(p.tenApp || sap) + '</p>' +
         '<p class="text-xs text-gray-500">' + escHtml_(p.kichThuoc || '') + ' · ' + escHtml_(p.trangThaiHH || '') + ' · ' + so + '</p>' + (warn ? '<p class="mt-0.5">' + warn + '</p>' : '') + '</div>' +
@@ -4069,7 +4069,7 @@
         { id: 'thuhoi', icon: '🏢', label: 'CTY yêu cầu gỡ', n: groups.thuHoiCty.length, hot: groups.thuHoiCty.length > 0, color: 'border-purple-600',
           body: agencySectionInner(groups.thuHoiCty, 'thuHoiCty', 'Không có mã nào bị công ty yêu cầu gỡ') },
         { id: 'goMau', icon: '🔴', label: 'Cân nhắc gỡ mẫu', n: groups.canGoMau.length, hot: groups.canGoMau.length > 0, color: 'border-red-500',
-          sub: boSomN ? boSomN + ' bỏ sớm' : '', body: agencySectionInner(groups.canGoMau, 'canGoMau', 'Không có mẫu nào cần gỡ') },
+          sub: boSomN ? boSomN + ' bỏ sớm' : '', body: agencySectionInner(groups.canGoMau, 'canGoMau', 'Không có mẫu nào cần cân nhắc gỡ') },
         { id: 'tem', icon: '🏷️', label: 'Dán/thay tem', n: groups.temCanThay.length, hot: groups.temCanThay.length > 0, color: 'border-orange-500',
           body: renderTemCanThayInner(groups.temCanThay) },
         { id: 'trienkhai', icon: '📋', label: 'Việc cần làm', n: tkConLai, hot: tkConLai > 0, color: 'border-teal-500',
