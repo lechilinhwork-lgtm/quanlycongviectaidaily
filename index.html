@@ -335,6 +335,7 @@
         <div class="flex justify-end mb-3"><button type="button" onclick="exportMgrExcel_()" class="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 active:bg-green-700"><i class="fas fa-file-excel"></i> Tải Excel tổng quan</button></div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" id="managerReportTotals"></div>
         <div id="mgrDash" class="mb-5"></div>
+        <div id="bcBox" class="mb-5"></div>
         <h3 class="font-bold text-gray-700 mb-2 text-sm"><i class="fas fa-store"></i> Chi tiết từng đại lý</h3>
         <div class="mb-3">
           <input type="text" id="managerReportSearch" placeholder="Tìm theo tên đại lý hoặc Sale phụ trách..."
@@ -728,6 +729,7 @@
     // lỗi), KHÔNG gọi lại server nữa. Xem ghi chú ở Code.gs, hàm readBangGia/readTonKhoCongTy/
     // readThuHoiMau/readAllTemCanThay/readAllDonHoi.
     let allBangGia = {};
+    let allBanChay = {};   // mức bán chạy theo Mã SAP — CHỈ nạp cho Quản lý (không có số doanh thu)
     let allKeoGia = {};   // giá keo dán gạch / bột chà ron theo Mã SAP (đ/bao)
     let allTonKhoCty = {};
     let allThuHoiSet = new Set();
@@ -1318,6 +1320,7 @@
       currentUserHoTen = hoTen || '';
       currentUserVaiTro = vaiTro || '';
       document.getElementById('managerReportSection').classList.toggle('hidden', !isManagerRole_(currentUserVaiTro));
+      if (isManagerRole_(currentUserVaiTro)) loadBanChay_(); else allBanChay = {};
       computeMyAgencies();
       populateAgencySelect();
       populateAgencyViewSelect();
@@ -1651,7 +1654,7 @@
     // số ở callServer() bên dưới, khỏi phải sửa từng chỗ gọi.
     const AUTH_REQUIRED_FUNCS = [
       'updateStock', 'updateStockBatch', 'submitTemRequestBatch',
-      'updateTemTrangThai', 'submitDonHoiBatch', 'updateDonHoiTrangThai', 'setTrienKhai', 'getTaiKhoanAI', 'addAgency', 'setQuyetDinhMau', 'addCongViecDaiLy', 'setCongViecDaiLyTrangThai', 'xoaCongViecDaiLy', 'logTemLaMa'
+      'updateTemTrangThai', 'submitDonHoiBatch', 'updateDonHoiTrangThai', 'setTrienKhai', 'getTaiKhoanAI', 'addAgency', 'setQuyetDinhMau', 'addCongViecDaiLy', 'setCongViecDaiLyTrangThai', 'xoaCongViecDaiLy', 'logTemLaMa', 'readBanChay'
     ];
 
     // Trì hoãn 1 hàm cho tới khi người dùng NGỪNG gõ được `ms` mili-giây — dùng cho các ô tìm
@@ -1821,6 +1824,104 @@
       renderManagerReport();
     }
 
+
+    // ===== ĐỀ XUẤT BỔ SUNG MẪU THEO MỨC BÁN CHẠY (CHỈ QUẢN LÝ) =====
+    // Dựa trên xếp hạng bán chạy 2024–2026 (sheet BanChay). Cố ý KHÔNG hiển thị doanh thu: chỉ dùng Hạng + Phân loại.
+    // "Mã chủ lực" = Phân loại "Bán chạy chủ lực", còn kinh doanh (MX/MV/DDH/MM), không bị thu hồi/bỏ sớm, (nếu có dữ liệu tồn) công ty còn hàng.
+    function loadBanChay_() {
+      callServer('readBanChay', [], function(r) {
+        if (r && r.success) { allBanChay = r.data || {}; if (Object.keys(allBanChay).length) renderManagerReport(); }
+      });
+    }
+    let bcTab_ = 'ma', bcAgency_ = '';
+    function buildBcModel_(m) {
+      if (!Object.keys(allBanChay).length) return null;
+      const hasTon = Object.keys(allTonKhoCty).length > 0;
+      const tonOf = sap => (allTonKhoCty[sap] ? allTonKhoCty[sap].total : 0);
+      const elig = allProducts.filter(p => {
+        const b = allBanChay[p.sapCode];
+        if (!b || b.pl !== 'Bán chạy chủ lực' || !TRANG_THAI_DANG_KD.includes(p.trangThaiHH) || allThuHoiSet.has(p.sapCode)) return false;
+        const qm = allQuanLyMau[p.sapCode];
+        if (qm && qm.quyetDinh === 'Bỏ mẫu sớm') return false;
+        return !hasTon || tonOf(p.sapCode) > 0;
+      }).sort((a, b) => allBanChay[a.sapCode].hang - allBanChay[b.sapCode].hang);
+      const nDL = allAgencies.length || 1;
+      const byMa = elig.map(p => {
+        let co = 0; allAgencies.forEach(a => { if (((allStock[p.sapCode] || {})[a.tenDaiLy] || 0) > 0) co++; });
+        return { p: p, b: allBanChay[p.sapCode], co: co, thieu: nDL - co, ton: tonOf(p.sapCode) };
+      });
+      const byDL = allAgencies.map(a => {
+        const thieu = elig.filter(p => !(((allStock[p.sapCode] || {})[a.tenDaiLy] || 0) > 0));
+        const row = m.rows.find(r => r.tenDaiLy === a.tenDaiLy) || {};
+        return { ag: a, quanLy: a.quanLy || '', thieu: thieu, co: elig.length - thieu.length, phu: elig.length ? (elig.length - thieu.length) / elig.length : 0, tongMau: row.tongMau || 0 };
+      }).sort((a, b) => a.phu - b.phu);
+      const tong = {}, soDL = {};
+      allProducts.forEach(p => { const b = allBanChay[p.sapCode]; if (!b || b.pl !== 'Bán chậm') return; let t = 0, n = 0; allAgencies.forEach(a => { const q = (allStock[p.sapCode] || {})[a.tenDaiLy] || 0; if (q > 0) { t += q; n++; } }); if (t > 0) { tong[p.sapCode] = t; soDL[p.sapCode] = n; } });
+      const cham = Object.keys(tong).map(sap => { const p = allProducts.find(x => x.sapCode === sap); return { p: p, b: allBanChay[sap], tongMau: tong[sap], soDL: soDL[sap], ton: tonOf(sap), thuHoi: allThuHoiSet.has(sap) }; }).sort((a, b) => b.tongMau - a.tongMau);
+      const avgPhu = byDL.length ? byDL.reduce((s2, x) => s2 + x.phu, 0) / byDL.length : 0;
+      return { elig: elig, byMa: byMa, byDL: byDL, cham: cham, avgPhu: avgPhu, hasTon: hasTon };
+    }
+    function bcRow_(cells, bold) { return '<tr class="border-t">' + cells.map((c, i) => '<td class="px-2 py-1.5 ' + (i > 4 ? 'text-center' : '') + (bold && i === 0 ? ' font-semibold' : '') + '">' + c + '</td>').join('') + '</tr>'; }
+    function bcTable_(heads, rowsHtml, minW) { return '<div class="overflow-x-auto border rounded-lg max-h-[28rem] overflow-y-auto"><table class="w-full text-sm" style="min-width:' + (minW || 640) + 'px"><thead class="bg-gray-100 sticky top-0"><tr>' + heads.map((h, i) => '<th class="px-2 py-2 text-xs font-semibold text-gray-700 ' + (i > 4 ? 'text-center' : 'text-left') + '">' + h + '</th>').join('') + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'; }
+    function setBcTab_(t) { bcTab_ = t; renderManagerReport(); }
+    function setBcAgency_(v) { bcAgency_ = v; renderManagerReport(); }
+    function renderBcBox_(m) {
+      const box = document.getElementById('bcBox'); if (!box) return;
+      const bc = buildBcModel_(m);
+      if (!bc) { box.innerHTML = Object.keys(allBanChay).length === 0 && isManagerRole_(currentUserVaiTro) ? '<div class="p-3 rounded-lg border border-dashed text-xs text-gray-500">🎯 Đề xuất bổ sung mẫu theo mức bán chạy: chưa có dữ liệu. Dán sheet <b>BanChay</b> (file BanChay_import.xlsx) vào Google Sheet rồi tải lại.</div>' : ''; return; }
+      const btn = (id, lb) => '<button type="button" onclick="setBcTab_(\'' + id + '\')" class="px-3 py-2 rounded-lg text-sm font-semibold border ' + (bcTab_ === id ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700') + '">' + lb + '</button>';
+      const tt = p => '<span class="status-' + String(p.trangThaiHH).toLowerCase() + ' px-1.5 py-0.5 rounded text-[11px] font-semibold">' + escHtml_(p.trangThaiHH) + '</span>';
+      const tenOf = p => escHtml_(p.tenApp || p.tenHang);
+      const thieuNhieu = bc.byDL.filter(x => x.phu < 0.5).length;
+      let body = '';
+      if (bcTab_ === 'ma') {
+        const rows = bc.byMa.slice().sort((a, b) => b.thieu - a.thieu || a.b.hang - b.b.hang).slice(0, 60);
+        body = '<p class="text-xs text-gray-500 mb-2">Mã bán chạy chủ lực mà nhiều đại lý CHƯA có mẫu — ưu tiên cấp mẫu. Xếp theo số đại lý còn thiếu.</p>' +
+          bcTable_(['Hạng', 'Mã', 'Kích thước', 'Bộ sưu tập', 'TT', 'Đại lý có', 'Thiếu ở', 'Tồn CTY'], rows.map(x => bcRow_(['#' + x.b.hang, tenOf(x.p) + '<br><span class="text-[11px] text-gray-400">' + x.p.sapCode + '</span>', escHtml_(x.p.kichThuoc || ''), escHtml_(x.b.bst || ''), tt(x.p), x.co, '<b class="text-red-600">' + x.thieu + '</b>', bc.hasTon ? x.ton : '–'], true)).join(''), 760);
+      } else if (bcTab_ === 'dl') {
+        if (!bcAgency_ || !bc.byDL.some(x => x.ag.tenDaiLy === bcAgency_)) bcAgency_ = bc.byDL[0].ag.tenDaiLy;
+        const sel = bc.byDL.find(x => x.ag.tenDaiLy === bcAgency_), bySize = {};
+        sel.thieu.forEach(p => { const k = sizeKey_(p.kichThuoc); bySize[k] = (bySize[k] || 0) + 1; });
+        body = '<div class="flex flex-wrap gap-2 items-center mb-2"><select onchange="setBcAgency_(this.value)" class="flex-1 min-w-[220px] px-3 py-2 border rounded-lg text-sm">' +
+          bc.byDL.map(x => '<option value="' + escHtml_(x.ag.tenDaiLy) + '"' + (x.ag.tenDaiLy === bcAgency_ ? ' selected' : '') + '>' + escHtml_(x.ag.tenDaiLy) + ' — phủ ' + pct_(x.phu) + '%</option>').join('') + '</select></div>' +
+          '<p class="text-sm mb-1">Sale: <b>' + escHtml_(sel.quanLy || '—') + '</b> · đang có <b>' + sel.co + '</b>/' + bc.elig.length + ' mã chủ lực (<b>' + pct_(sel.phu) + '%</b>) · thiếu <b class="text-red-600">' + sel.thieu.length + '</b> mã</p>' +
+          '<p class="text-xs text-gray-500 mb-2">Thiếu theo kích thước: ' + (Object.keys(bySize).sort((a, b) => bySize[b] - bySize[a]).map(k => '<span class="inline-block bg-gray-100 rounded px-2 py-0.5 mr-1 mb-1">' + escHtml_(k) + ': <b>' + bySize[k] + '</b></span>').join('') || 'không thiếu') + '</p>' +
+          bcTable_(['Hạng', 'Mã', 'Kích thước', 'Bộ sưu tập', 'TT', 'Tồn CTY'], sel.thieu.slice(0, 40).map(p => bcRow_(['#' + allBanChay[p.sapCode].hang, tenOf(p) + '<br><span class="text-[11px] text-gray-400">' + p.sapCode + '</span>', escHtml_(p.kichThuoc || ''), escHtml_(allBanChay[p.sapCode].bst || ''), tt(p), bc.hasTon ? (allTonKhoCty[p.sapCode] ? allTonKhoCty[p.sapCode].total : 0) : '–'], true)).join(''), 640) +
+          '<p class="text-xs font-bold text-gray-600 uppercase mt-3 mb-1">15 đại lý phủ mã chủ lực thấp nhất</p>' +
+          bcTable_(['Đại lý', 'Sale', 'Có', 'Thiếu', 'Độ phủ'], bc.byDL.slice(0, 15).map(x => bcRow_([escHtml_(x.ag.tenDaiLy), escHtml_(x.quanLy), x.co, '<b class="text-red-600">' + x.thieu.length + '</b>', pct_(x.phu) + '%'], true)).join(''), 520);
+      } else {
+        body = '<p class="text-xs text-gray-500 mb-2">Mã đang bán chậm nhưng vẫn trưng nhiều ở đại lý — cân nhắc gỡ để nhường chỗ cho mã bán chạy hơn.</p>' +
+          bcTable_(['Hạng', 'Mã', 'Kích thước', 'Bộ sưu tập', 'TT', 'Số đại lý', 'Tổng mẫu', 'Tồn CTY'], bc.cham.slice(0, 40).map(x => bcRow_(['#' + x.b.hang, tenOf(x.p) + (x.thuHoi ? ' <span class="text-[11px] text-purple-700 font-bold">🏢 CTY gỡ</span>' : '') + '<br><span class="text-[11px] text-gray-400">' + x.p.sapCode + '</span>', escHtml_(x.p.kichThuoc || ''), escHtml_(x.b.bst || ''), tt(x.p), x.soDL, '<b>' + x.tongMau + '</b>', bc.hasTon ? x.ton : '–'], true)).join(''), 780);
+      }
+      box.innerHTML = '<div class="border-2 border-amber-300 bg-amber-50/40 rounded-lg p-3">' +
+        '<div class="flex flex-wrap items-center justify-between gap-2 mb-2"><h3 class="font-bold text-gray-800"><span>🎯</span> Đề xuất bổ sung mẫu theo mức bán chạy <span class="text-[11px] font-semibold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full ml-1">Chỉ Quản lý thấy</span></h3>' +
+        '<button type="button" onclick="exportBcExcel_()" class="bg-green-600 text-white px-3 py-2 rounded-lg font-semibold text-sm active:bg-green-700"><i class="fas fa-file-excel"></i> Tải Excel đề xuất</button></div>' +
+        '<p class="text-[11px] text-gray-500 mb-2">Dựa trên xếp hạng bán chạy 2024–2026. Không hiển thị số liệu doanh số — chỉ dùng thứ hạng để chọn mẫu đại lý nên có.</p>' +
+        '<div class="grid grid-cols-3 gap-2 mb-3 text-center"><div class="p-2 rounded-lg bg-white border"><p class="text-lg font-extrabold text-indigo-700">' + bc.elig.length + '</p><p class="text-[11px] text-gray-600">Mã chủ lực đang kinh doanh</p></div>' +
+        '<div class="p-2 rounded-lg bg-white border"><p class="text-lg font-extrabold ' + (pct_(bc.avgPhu) >= 60 ? 'text-green-700' : 'text-orange-600') + '">' + pct_(bc.avgPhu) + '%</p><p class="text-[11px] text-gray-600">Độ phủ mã chủ lực TB / đại lý</p></div>' +
+        '<div class="p-2 rounded-lg bg-white border"><p class="text-lg font-extrabold text-red-600">' + thieuNhieu + '</p><p class="text-[11px] text-gray-600">Đại lý phủ dưới 50%</p></div></div>' +
+        '<div class="flex flex-wrap gap-2 mb-3">' + btn('ma', '📦 Mã nên cấp thêm') + btn('dl', '🏪 Theo đại lý') + btn('cham', '🐌 Bán chậm, cân nhắc gỡ') + '</div>' + body + '</div>';
+    }
+    function exportBcExcel_() {
+      if (typeof XLSX === 'undefined') { alert('Chưa tải được thư viện xuất Excel, kiểm tra mạng rồi thử lại'); return; }
+      const m = buildMgrModel_(), bc = buildBcModel_(m);
+      if (!bc) { alert('Chưa có dữ liệu bán chạy (sheet BanChay)'); return; }
+      const now = new Date(), pad = n => String(n).padStart(2, '0'), ton = sap => (allTonKhoCty[sap] ? allTonKhoCty[sap].total : 0);
+      const sheet = (aoa, widths) => { const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = widths.map(w => ({ wch: w })); return ws; };
+      const wb = XLSX.utils.book_new();
+      const wsDL = sheet([['Đại lý', 'Sale phụ trách', 'Mã chủ lực đang có', 'Mã chủ lực còn thiếu', 'Độ phủ', 'Tổng mẫu đang trưng', '10 mã chủ lực nên bổ sung trước (hạng · mã · kích thước)']].concat(bc.byDL.map(x => [x.ag.tenDaiLy, x.quanLy, x.co, x.thieu.length, x.phu, x.tongMau, x.thieu.slice(0, 10).map(p => '#' + allBanChay[p.sapCode].hang + ' ' + (p.tenApp || p.tenHang) + ' ' + (p.kichThuoc || '')).join('; ')])), [46, 24, 14, 14, 10, 14, 120]);
+      for (let r = 1; r <= bc.byDL.length; r++) { const c = wsDL['E' + (r + 1)]; if (c) c.z = '0%'; }
+      XLSX.utils.book_append_sheet(wb, wsDL, 'Theo đại lý');
+      const det = [['Đại lý', 'Sale phụ trách', 'Hạng bán chạy', 'Mã SAP', 'Tên mẫu', 'Kích thước', 'Bộ sưu tập', 'Trạng thái HH', 'Tồn công ty (thùng)']];
+      bc.byDL.forEach(x => x.thieu.slice(0, 30).forEach(p => det.push([x.ag.tenDaiLy, x.quanLy, allBanChay[p.sapCode].hang, p.sapCode, p.tenApp || p.tenHang, p.kichThuoc, allBanChay[p.sapCode].bst, p.trangThaiHH, ton(p.sapCode)])));
+      XLSX.utils.book_append_sheet(wb, sheet(det, [46, 24, 12, 12, 30, 12, 22, 12, 14]), 'Chi tiết cần bổ sung');
+      XLSX.utils.book_append_sheet(wb, sheet([['Hạng bán chạy', 'Mã SAP', 'Tên mẫu', 'Kích thước', 'Bộ sưu tập', 'Trạng thái HH', 'Số đại lý đang có', 'Số đại lý còn thiếu', 'Tồn công ty (thùng)']].concat(bc.byMa.map(x => [x.b.hang, x.p.sapCode, x.p.tenApp || x.p.tenHang, x.p.kichThuoc, x.b.bst, x.p.trangThaiHH, x.co, x.thieu, x.ton])), [12, 12, 30, 12, 22, 12, 14, 14, 14]), 'Theo mã chủ lực');
+      XLSX.utils.book_append_sheet(wb, sheet([['Hạng bán chạy', 'Mã SAP', 'Tên mẫu', 'Kích thước', 'Bộ sưu tập', 'Trạng thái HH', 'Số đại lý đang trưng', 'Tổng mẫu đang trưng', 'Tồn công ty (thùng)', 'CTY yêu cầu gỡ']].concat(bc.cham.map(x => [x.b.hang, x.p.sapCode, x.p.tenApp || x.p.tenHang, x.p.kichThuoc, x.b.bst, x.p.trangThaiHH, x.soDL, x.tongMau, x.ton, x.thuHoi ? 'Có' : ''])), [12, 12, 30, 12, 22, 12, 14, 14, 14, 12]), 'Bán chậm cân nhắc gỡ');
+      XLSX.utils.book_append_sheet(wb, sheet([['ĐỀ XUẤT BỔ SUNG MẪU THEO MỨC BÁN CHẠY – ĐỒNG TÂM KV23'], ['Xuất lúc', now.toLocaleString('vi-VN')], ['Căn cứ', 'Xếp hạng bán chạy 2024–2026 (không hiển thị doanh số). Mã chủ lực = Phân loại "Bán chạy chủ lực", còn kinh doanh, không bị thu hồi/bỏ sớm, công ty còn hàng.'], ['Mã chủ lực đang xét', bc.elig.length], ['Độ phủ TB mỗi đại lý', Math.round(bc.avgPhu * 100) + '%']], [28, 110]), 'Giải thích');
+      XLSX.writeFile(wb, 'DeXuat_BoSungMau_KV23_' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '.xlsx');
+      toast('Đã tải Excel đề xuất bổ sung mẫu');
+    }
+
     // Gộp nhiều lần gọi liên tiếp (8 lệnh tải dữ liệu về lần lượt) thành 1 lần vẽ — báo cáo này
     // tính cho toàn bộ đại lý nên rất nặng nếu vẽ lại mỗi lần.
     let mgrRptTimer_ = null;
@@ -1986,6 +2087,7 @@
       `;
 
       renderMgrDash_(model);
+      renderBcBox_(model);
 
       const cardsBox = document.getElementById('managerReportCards');
       if (cardsBox) {
