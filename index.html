@@ -187,6 +187,13 @@
 
     <!-- ===== TAB 1: DASHBOARD ===== -->
     <div id="dashboard" class="tab-content">
+      <!-- VIỆC CẦN LÀM THEO ĐẠI LÝ: Sale thấy đại lý mình phụ trách, Quản lý thấy tất cả. Gộp mọi loại việc: CTY yêu cầu gỡ, cân nhắc gỡ, dán tem, việc triển khai/giấy tờ, đơn hỏi. -->
+      <div id="pendingTasksSection" class="hidden bg-white rounded-lg shadow p-4 md:p-6 mb-6 border-2 border-teal-200">
+        <h2 class="text-lg md:text-xl font-bold mb-1 flex items-center gap-2"><i class="fas fa-route text-teal-600"></i> Việc cần làm theo đại lý</h2>
+        <p class="text-xs text-gray-500 mb-3">Đại lý cần xử lý gấp xếp trên cùng. Bấm vào loại việc để mở đúng mục tại đại lý đó.</p>
+        <div id="pendingTasksList"></div>
+      </div>
+
       <!-- Điện thoại: đa số Sale cầm máy đến đại lý để CẬP NHẬT, không phải xem số liệu tổng
            catalog sản phẩm (4 ô thống kê + phân bố trạng thái bên dưới chỉ hữu ích khi ngồi bàn
            giấy/máy tính) — thay bằng lối tắt thao tác nhanh tới đúng việc Sale cần làm ngay. Vẫn
@@ -319,12 +326,7 @@
 
       <!-- Chỉ hiện cho vai trò Quản lý — tổng quan toàn bộ mẫu trưng bày tại TẤT CẢ đại lý,
            không giới hạn theo Sale phụ trách (khác với các phần khác của app). -->
-      <!-- Nhắc việc: đại lý nào còn việc triển khai/giấy tờ chưa làm (Sale thấy đại lý mình phụ trách, Quản lý thấy tất cả) -->
-      <div id="pendingTasksSection" class="hidden bg-white rounded-lg shadow p-4 md:p-6 mt-6">
-        <h2 class="text-xl font-bold mb-1 flex items-center gap-2"><i class="fas fa-bell text-teal-600"></i> Việc chưa làm tại đại lý</h2>
-        <p class="text-xs text-gray-500 mb-3">Việc triển khai, ký giấy tờ, trưng bày... còn thiếu. Bấm vào đại lý để mở và đánh dấu.</p>
-        <div id="pendingTasksList"></div>
-      </div>
+
 
       <div id="managerReportSection" class="hidden bg-white rounded-lg shadow p-4 md:p-6 mt-6">
         <h2 class="text-xl font-bold mb-1 flex items-center gap-2">
@@ -2320,38 +2322,80 @@
       });
     }
 
-    // Danh sách đại lý còn việc chưa làm (nhiều việc / quá hạn lên trước)
-    function renderPendingTasks_() {
+    // ===== VIỆC CẦN LÀM THEO ĐẠI LÝ (Dashboard) =====
+    // Mỗi đại lý 1 thẻ: số việc theo từng loại (CTY yêu cầu gỡ / cân nhắc gỡ / dán tem / việc triển khai / đơn hỏi), xếp theo mức gấp.
+    let ptFilter_ = 'all', ptSearch_ = '', ptLimit_ = 12, ptTimer_ = null;
+    const PT_TYPES_ = [
+      { k: 'thuHoi', icon: '🏢', lb: 'CTY yêu cầu gỡ', panel: 'thuhoi', cls: 'bg-purple-100 text-purple-800 border-purple-300', w: 5 },
+      { k: 'goMau', icon: '🔴', lb: 'Cân nhắc gỡ', panel: 'goMau', cls: 'bg-red-50 text-red-700 border-red-200', w: 2 },
+      { k: 'tem', icon: '🏷️', lb: 'Dán tem', panel: 'tem', cls: 'bg-orange-50 text-orange-700 border-orange-200', w: 2 },
+      { k: 'viec', icon: '📋', lb: 'Việc cần làm', panel: 'trienkhai', cls: 'bg-teal-50 text-teal-700 border-teal-200', w: 1.5 },
+      { k: 'donHoi', icon: '💬', lb: 'Đơn hỏi treo', panel: '__donhoi', cls: 'bg-blue-50 text-blue-700 border-blue-200', w: 3 }
+    ];
+    function renderPendingTasks_() { clearTimeout(ptTimer_); ptTimer_ = setTimeout(renderPendingTasksNow_, 120); }   // gộp nhiều lần gọi (dữ liệu về lần lượt) thành 1 lần vẽ
+    function setPtFilter_(f) { ptFilter_ = f; ptLimit_ = 12; renderPendingTasksNow_(); }
+    function setPtSearch_(v) { ptSearch_ = v; ptLimit_ = 12; renderPendingTasksNow_(); const el = document.getElementById('ptSearch'); if (el) { el.focus(); el.setSelectionRange(v.length, v.length); } }
+    function ptMore_() { ptLimit_ += 20; renderPendingTasksNow_(); }
+    function renderPendingTasksNow_() {
       const sec = document.getElementById('pendingTasksSection'), box = document.getElementById('pendingTasksList');
       if (!sec || !box) return;
       const isMgr = isManagerRole_(currentUserVaiTro);
       const scope = isMgr ? allAgencies : myAgencies;
       if (!currentUserVaiTro || !scope.length) { sec.classList.add('hidden'); return; }
-      const rows = scope.map(a => {
-        const tk = trienKhaiOf_(a.tenDaiLy).concat(viecRiengOf_(a.tenDaiLy)), conLai = tk.filter(t => !t.done);
-        return { ten: a.tenDaiLy, tong: tk.length, conLai: conLai.length, quaHan: conLai.filter(isQuaHan_).length,
-                 viec: conLai.slice(0, 3).map(t => t.ten) };
-      }).filter(r => r.conLai > 0).sort((x, y) => y.quaHan - x.quaHan || y.conLai - x.conLai || x.ten.localeCompare(y.ten, 'vi'));
+      if (!allProducts.length) return;                        // dữ liệu chưa về: giữ nguyên, lần sau vẽ lại
+      const all = scope.map(a => {
+        const g = computeAgencyGroups(a.tenDaiLy), tk = g.trienKhai.concat(g.viecRieng), conLai = tk.filter(t => !t.done);
+        const r = { ten: a.tenDaiLy, ma: a.ma || '', thuHoi: g.thuHoiCty.length, goMau: g.canGoMau.length, tem: g.temCanThay.length, viec: conLai.length, tong: tk.length,
+          quaHan: conLai.filter(isQuaHan_).length, donHoi: g.donHoi.filter(d => d.trangThai !== 'Đã chốt' && d.trangThai !== 'Không chốt').length,
+          het: g.hetHang.length, viecTen: conLai.slice().sort((x, y) => isQuaHan_(y) - isQuaHan_(x)).slice(0, 2).map(t => (isQuaHan_(t) ? '⏰ ' : '') + t.ten) };
+        r.score = r.thuHoi * 5 + r.quaHan * 4 + r.goMau * 2 + r.tem * 2 + r.viec * 1.5 + r.donHoi * 3;
+        return r;
+      }).filter(r => r.thuHoi + r.goMau + r.tem + r.viec + r.donHoi > 0).sort((x, y) => y.score - x.score || x.ten.localeCompare(y.ten, 'vi'));
       sec.classList.remove('hidden');
-      if (!rows.length) { box.innerHTML = '<p class="text-green-700 text-sm font-semibold">✔ Không còn việc nào chưa làm.</p>'; return; }
-      const tongViec = rows.reduce((s, r) => s + r.conLai, 0);
-      box.innerHTML = '<p class="text-sm text-gray-600 mb-2"><b>' + rows.length + '</b> đại lý · <b>' + tongViec + '</b> việc chưa làm</p>' +
-        rows.slice(0, 15).map(r => '<button type="button" data-ten="' + String(r.ten).replace(/"/g, '&quot;') + '" onclick="openAgencyTasks(this.dataset.ten)" class="w-full text-left flex items-center justify-between gap-2 p-3 border rounded-lg mb-2 ' + (r.quaHan ? 'border-red-300 bg-red-50' : 'bg-white') + '">' +
-          '<span class="min-w-0"><span class="block font-semibold text-sm truncate">' + r.ten + '</span>' +
-          '<span class="block text-xs text-gray-500 truncate">' + r.viec.join(' · ') + (r.conLai > 3 ? ' · +' + (r.conLai - 3) + ' việc' : '') + '</span></span>' +
-          '<span class="flex-shrink-0 text-right"><span class="block text-lg font-extrabold ' + (r.quaHan ? 'text-red-600' : 'text-teal-700') + '">' + r.conLai + '/' + r.tong + '</span>' +
-          (r.quaHan ? '<span class="block text-[11px] text-red-600 font-semibold">' + r.quaHan + ' quá hạn</span>' : '') + '</span></button>').join('') +
-        (rows.length > 15 ? '<p class="text-xs text-gray-400 text-center">... và ' + (rows.length - 15) + ' đại lý khác</p>' : '');
+      if (!all.length) { box.innerHTML = '<p class="text-green-700 text-sm font-semibold">✔ Không còn việc nào cần làm. Tuyệt vời!</p>'; return; }
+      const cntBy = k => all.filter(r => r[k] > 0).length, sumBy = k => all.reduce((s2, r) => s2 + r[k], 0);
+      let rows = all.filter(r => ptFilter_ === 'all' || r[ptFilter_] > 0);
+      const kw = normalizeVN(ptSearch_.trim());
+      if (kw) rows = rows.filter(r => normalizeVN(r.ten).indexOf(kw) >= 0 || normalizeVN(r.ma).indexOf(kw) >= 0);
+      const chip = (k, lb, on) => '<button type="button" data-f="' + k + '" onclick="setPtFilter_(this.dataset.f)" class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border ' + (on ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700') + '">' + lb + '</button>';
+      const tongQuaHan = sumBy('quaHan');
+      let html = '<div class="grid grid-cols-3 gap-2 mb-3 text-center"><div class="p-2 rounded-lg bg-teal-50 border border-teal-200"><p class="text-xl font-extrabold text-teal-700">' + all.length + '</p><p class="text-[11px] text-gray-600">đại lý có việc</p></div>' +
+        '<div class="p-2 rounded-lg bg-gray-50 border"><p class="text-xl font-extrabold text-gray-700">' + (sumBy('thuHoi') + sumBy('goMau') + sumBy('tem') + sumBy('viec') + sumBy('donHoi')) + '</p><p class="text-[11px] text-gray-600">việc tổng cộng</p></div>' +
+        '<div class="p-2 rounded-lg ' + (tongQuaHan ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border') + '"><p class="text-xl font-extrabold ' + (tongQuaHan ? 'text-red-600' : 'text-gray-400') + '">' + tongQuaHan + '</p><p class="text-[11px] text-gray-600">việc quá hạn</p></div></div>';
+      if (ptFilter_ === 'all' && !kw && all.length > 1) {
+        html += '<div class="mb-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-sm"><b>🚗 Nên ghé trước:</b> ' + all.slice(0, 3).map((r, i) => '<button type="button" data-ten="' + escHtml_(r.ten) + '" data-p="" onclick="openAgencyPanel_(this.dataset.ten, this.dataset.p)" class="underline font-semibold text-amber-900">' + (i + 1) + '. ' + escHtml_(r.ten) + '</button>').join(' &nbsp; ') + '</div>';
+      }
+      html += '<div class="flex gap-1.5 overflow-x-auto pb-2 mb-2">' + chip('all', 'Tất cả (' + all.length + ')', ptFilter_ === 'all') + PT_TYPES_.map(t => chip(t.k, t.icon + ' ' + t.lb + ' (' + cntBy(t.k) + ')', ptFilter_ === t.k)).join('') + '</div>' +
+        (all.length > 6 ? '<input id="ptSearch" type="text" value="' + escHtml_(ptSearch_) + '" oninput="debounce_(function(){ setPtSearch_(document.getElementById(\'ptSearch\').value); }, 250)" placeholder="Tìm đại lý..." class="w-full px-3 py-2 border rounded-lg text-sm mb-2">' : '');
+      if (!rows.length) html += '<p class="text-gray-400 text-center py-4 text-sm">Không có đại lý nào khớp</p>';
+      html += rows.slice(0, ptLimit_).map(r => {
+        const badges = PT_TYPES_.filter(t => r[t.k] > 0).map(t => '<button type="button" data-ten="' + escHtml_(r.ten) + '" data-p="' + t.panel + '" onclick="openAgencyPanel_(this.dataset.ten, this.dataset.p)" class="px-2 py-1 rounded-lg border text-xs font-semibold ' + t.cls + '">' + t.icon + ' ' + r[t.k] + ' ' + t.lb + (t.k === 'viec' && r.quaHan ? ' · <span class="text-red-600">' + r.quaHan + ' quá hạn</span>' : '') + '</button>').join(' ');
+        return '<div class="p-3 mb-2 rounded-lg border ' + (r.thuHoi || r.quaHan ? 'border-red-300 bg-red-50/40' : 'bg-white') + '"><button type="button" data-ten="' + escHtml_(r.ten) + '" data-p="" onclick="openAgencyPanel_(this.dataset.ten, this.dataset.p)" class="w-full text-left flex items-start justify-between gap-2"><span class="font-bold text-sm">' + escHtml_(r.ten) + '</span><span class="text-xs text-teal-700 font-semibold whitespace-nowrap">Mở <i class="fas fa-chevron-right"></i></span></button>' +
+          '<div class="flex flex-wrap gap-1.5 mt-2">' + badges + '</div>' +
+          (r.viecTen.length ? '<p class="text-xs text-gray-500 mt-1.5 truncate">' + r.viecTen.map(escHtml_).join(' · ') + (r.viec > r.viecTen.length ? ' · +' + (r.viec - r.viecTen.length) : '') + '</p>' : '') + '</div>';
+      }).join('');
+      if (rows.length > ptLimit_) html += '<button type="button" onclick="ptMore_()" class="w-full py-2.5 rounded-lg bg-teal-50 text-teal-700 font-semibold text-sm border border-teal-200">Hiện thêm (' + (rows.length - ptLimit_) + ' đại lý)</button>';
+      box.innerHTML = html;
     }
-    function openAgencyTasks(tenDaiLy) {
+    // Mở đại lý: panel = mục cần mở ('' = tự chọn mục gấp nhất; '__donhoi' = sang tab Đơn hỏi lọc theo đại lý)
+    function openAgencyPanel_(tenDaiLy, panel) {
+      if (panel === '__donhoi') {
+        const kwEl = document.getElementById('donhoiSearchKeyword'); if (kwEl) kwEl.value = tenDaiLy;
+        switchTab('donhoi'); return;
+      }
+      if (!panel) {
+        const g = computeAgencyGroups(tenDaiLy), tk = g.trienKhai.concat(g.viecRieng).filter(t => !t.done);
+        panel = g.thuHoiCty.length ? 'thuhoi' : (tk.some(isQuaHan_) ? 'trienkhai' : (g.canGoMau.length ? 'goMau' : (g.temCanThay.length ? 'tem' : 'trienkhai')));
+      }
       switchTab('agencyView');
       const sel = document.getElementById('agencyViewSelect');
       if (![...sel.options].some(o => o.value === tenDaiLy)) toggleAgencyScope(true);   // ngoài phạm vi đang xem -> bật xem tất cả
       sel.value = tenDaiLy;
       loadAgencyView();
       agencyOpenPanel_ = '';
-      showAgencyPanel('trienkhai');
+      showAgencyPanel(panel);
     }
+    function openAgencyTasks(tenDaiLy) { openAgencyPanel_(tenDaiLy, 'trienkhai'); }
 
     function renderTopAlerts(allAlerts) {
             const alerts = (allAlerts || []).slice(0, 5);
